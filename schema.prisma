@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  PENDING   // נרשם/ה, ממתין/ה לאישור מנהל/ת
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id                 String     @id @default(cuid())
+  email              String     @unique
+  passwordHash       String
+  firstName          String
+  lastName           String
+  status             UserStatus @default(PENDING)
+  isAdmin            Boolean    @default(false)
+  club               String     @default("")
+  phone              String     @default("")
+  seniorityYear      Int?
+  seniorityMonth     Int?
+  roleExperience     String     @default("")
+  courses            String     @default("")
+  internationalComps String     @default("")
+  createdAt          DateTime   @default(now())
+
+  headOf        CompetitionHeadJudge[]
+  registrations Registration[]
+  assignments   Assignment[]
+  notes         Note[]
+}
+
+model PoolLayout {
+  id           String        @id @default(cuid())
+  name         String
+  laneCount    Int
+  isDefault    Boolean       @default(false)
+  positions    Json // [{ id, label, defaultRole, x, y }]
+  createdAt    DateTime      @default(now())
+  competitions Competition[]
+}
+
+model Competition {
+  id           String   @id @default(cuid())
+  number       String   @default("")
+  name         String
+  date         DateTime
+  location     String   @default("")
+  statuteUrl   String   @default("")
+  announcement String   @default("")
+  sessions     Json     @default("[]") // [{ id, label, datetime }]
+  poolLayoutId String?
+  createdAt    DateTime @default(now())
+
+  poolLayout    PoolLayout?            @relation(fields: [poolLayoutId], references: [id], onDelete: SetNull)
+  headJudges    CompetitionHeadJudge[]
+  registrations Registration[]
+  assignments   Assignment[]
+  notes         Note[]
+}
+
+// טבלת השיוך שמגדירה הרשאת "שופט/ת ראשי/ת" לתחרות ספציפית בלבד
+model CompetitionHeadJudge {
+  competitionId String
+  judgeId       String
+  assignedById  String?
+  assignedAt    DateTime @default(now())
+
+  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  judge       User        @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+
+  @@id([competitionId, judgeId])
+}
+
+model Registration {
+  id            String   @id @default(cuid())
+  competitionId String
+  judgeId       String
+  sessions      String[]
+  lodging       Boolean  @default(false)
+  noShow        Boolean  @default(false)
+  walkIn        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  judge       User        @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionId, judgeId])
+}
+
+model Assignment {
+  id            String   @id @default(cuid())
+  competitionId String
+  sessionId     String
+  positionId    String
+  positionLabel String
+  role          String
+  judgeId       String
+  assignedById  String?
+  assignedAt    DateTime @default(now()) @updatedAt
+
+  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  judge       User        @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionId, sessionId, positionId])
+}
+
+model Note {
+  id            String   @id @default(cuid())
+  competitionId String
+  authorId      String
+  text          String
+  createdAt     DateTime @default(now())
+
+  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+}
