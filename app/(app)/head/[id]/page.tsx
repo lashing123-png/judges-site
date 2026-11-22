@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser, canManage } from '@/lib/authz';
 import { layoutForCompetition } from '@/lib/layouts';
-import { fullName, fmtDateTime, iso, sessionsOf } from '@/lib/utils';
+import { fullName, fmtDateTime, iso, regCovers, sessionsOf } from '@/lib/utils';
 import Form from '@/components/Form';
 import SessionMap from '@/components/SessionMap';
 import { addNote, addWalkIn, deleteRegistration, toggleNoShow } from '@/actions/head';
@@ -27,6 +27,42 @@ export default async function HeadCompetitionPage(props: { params: Promise<{ id:
   ]);
   const byName = (a: { judge: { firstName: string; lastName: string } }, b: { judge: { firstName: string; lastName: string } }) =>
     fullName(a.judge).localeCompare(fullName(b.judge), 'he');
+
+  // טבלת נוכחות: לכל הצגה (עם עמודת שיבוץ במפה), או לכל התחרות כשאין הצגות (sessAssigns = null)
+  const attendance = (list: typeof regs, sessAssigns: typeof assigns | null) => (
+    <div className="tblwrap">
+      <table className="jud-table">
+        <thead><tr><th>שם</th><th>טלפון</th><th>לינה</th>{sessAssigns && <th>שיבוץ במפה</th>}<th>נוכחות</th></tr></thead>
+        <tbody>
+          {list.map((r) => {
+            const a = sessAssigns?.find((x) => x.judgeId === r.judgeId);
+            return (
+              <tr key={r.id} style={{ opacity: r.noShow ? 0.5 : 1 }}>
+                <td>
+                  {fullName(r.judge)} {r.walkIn && <span className="jud-chip chip-accent">הצטרפ/ה במקום</span>} {r.noShow && <span className="jud-chip chip-lock">לא הגיע/ה</span>}
+                </td>
+                <td className="jud-mono">{r.judge.phone}</td>
+                <td>{r.lodging ? <span className="jud-chip chip-ok">נדרשת</span> : '—'}</td>
+                {sessAssigns && <td className="small">{a ? a.positionLabel : '— טרם שובץ במפה —'}</td>}
+                <td>
+                  <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                    <Form action={toggleNoShow} submit={r.noShow ? 'סימון כהגיע/ה' : 'לא הגיע/ה'} submitClass="jud-btn-ghost sm" inline>
+                      <input type="hidden" name="competitionId" value={comp.id} />
+                      <input type="hidden" name="judgeId" value={r.judgeId} />
+                    </Form>
+                    <Form action={deleteRegistration} submit="מחיקה" submitClass="jud-btn-ghost sm danger" confirm={`למחוק את ההרשמה של ${fullName(r.judge)}? השיבוצים שלו/ה במפה יפונו.`} inline>
+                      <input type="hidden" name="competitionId" value={comp.id} />
+                      <input type="hidden" name="judgeId" value={r.judgeId} />
+                    </Form>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <div className="stack">
@@ -61,18 +97,16 @@ export default async function HeadCompetitionPage(props: { params: Promise<{ id:
       <div className="card">
         <h3 className="jud-heading h3" style={{ marginBottom: 4 }}>הוספת שופט/ת שהגיע/ה ללא רישום מראש</h3>
         <p className="small muted" style={{ marginBottom: 12 }}>מיועד לשופטים שהגיעו בפועל לתחרות אך לא נרשמו דרך עמוד התחרות.</p>
-        {sessions.length === 0 ? (
-          <div className="muted">אין הצגות מוגדרות.</div>
-        ) : (
-          <Form action={addWalkIn} submit="הוספה לתחרות" className="row end" resetOnOk>
-            <input type="hidden" name="competitionId" value={comp.id} />
-            <div style={{ minWidth: 220 }}>
-              <label className="lbl">שופט/ת</label>
-              <select className="jud-input" name="judgeId" required defaultValue="">
-                <option value="">— בחירה —</option>
-                {candidates.map((j) => (<option key={j.id} value={j.id}>{fullName(j)}</option>))}
-              </select>
-            </div>
+        <Form action={addWalkIn} submit="הוספה לתחרות" className="row end" resetOnOk>
+          <input type="hidden" name="competitionId" value={comp.id} />
+          <div style={{ minWidth: 220 }}>
+            <label className="lbl">שופט/ת</label>
+            <select className="jud-input" name="judgeId" required defaultValue="">
+              <option value="">— בחירה —</option>
+              {candidates.map((j) => (<option key={j.id} value={j.id}>{fullName(j)}</option>))}
+            </select>
+          </div>
+          {sessions.length > 0 ? (
             <div>
               <div className="lbl">הצגות</div>
               <div className="row" style={{ gap: 8 }}>
@@ -81,14 +115,24 @@ export default async function HeadCompetitionPage(props: { params: Promise<{ id:
                 ))}
               </div>
             </div>
-          </Form>
-        )}
+          ) : (
+            <div className="small muted">התחרות לא חולקה להצגות: השופט/ת יתווסף/תתווסף לכל התחרות.</div>
+          )}
+        </Form>
       </div>
 
-      {sessions.length === 0 && <div className="card muted">לתחרות זו לא הוגדרו הצגות. מנהל/ת המערכת יכול/ה להוסיף אותן בלשונית "ניהול".</div>}
+      {sessions.length === 0 && (
+        <div className="card">
+          <h3 className="jud-heading h3" style={{ marginBottom: 4 }}>שופטים רשומים לתחרות ({regs.length})</h3>
+          <p className="small muted" style={{ marginBottom: 12 }}>
+            לתחרות זו עדיין לא הוגדרו הצגות, ולכן אין מפת שיבוץ. מנהל/ת המערכת יכול/ה להוסיף הצגות בלשונית &quot;ניהול&quot;, והרשומים לכל התחרות יופיעו בכל הצגה.
+          </p>
+          {regs.length === 0 ? <div className="muted">אין עדיין שופטים רשומים.</div> : attendance([...regs].sort(byName), null)}
+        </div>
+      )}
 
       {sessions.map((s) => {
-        const inSession = regs.filter((r) => r.sessions.includes(s.id)).sort(byName);
+        const inSession = regs.filter((r) => regCovers(r.sessions, s.id)).sort(byName);
         const sessAssigns = assigns.filter((a) => a.sessionId === s.id);
         const assigned: Record<string, { initials: string; name: string; judgeId: string; role: string }> = {};
         sessAssigns.forEach((a) => {
@@ -106,42 +150,7 @@ export default async function HeadCompetitionPage(props: { params: Promise<{ id:
               <div className="notice lock">אין תבנית מפת בריכה מוגדרת. יש לפנות למנהל/ת המערכת.</div>
             )}
             <h4 className="jud-heading h4" style={{ margin: '18px 0 10px' }}>נוכחות בהצגה זו</h4>
-            {inSession.length === 0 ? (
-              <div className="muted">אין שופטים רשומים להצגה זו.</div>
-            ) : (
-              <div className="tblwrap">
-                <table className="jud-table">
-                  <thead><tr><th>שם</th><th>טלפון</th><th>לינה</th><th>שיבוץ במפה</th><th>נוכחות</th></tr></thead>
-                  <tbody>
-                    {inSession.map((r) => {
-                      const a = sessAssigns.find((x) => x.judgeId === r.judgeId);
-                      return (
-                        <tr key={r.id} style={{ opacity: r.noShow ? 0.5 : 1 }}>
-                          <td>
-                            {fullName(r.judge)} {r.walkIn && <span className="jud-chip chip-accent">הצטרפ/ה במקום</span>} {r.noShow && <span className="jud-chip chip-lock">לא הגיע/ה</span>}
-                          </td>
-                          <td className="jud-mono">{r.judge.phone}</td>
-                          <td>{r.lodging ? <span className="jud-chip chip-ok">נדרשת</span> : '—'}</td>
-                          <td className="small">{a ? a.positionLabel : '— טרם שובץ במפה —'}</td>
-                          <td>
-                            <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-                              <Form action={toggleNoShow} submit={r.noShow ? 'סימון כהגיע/ה' : 'לא הגיע/ה'} submitClass="jud-btn-ghost sm" inline>
-                                <input type="hidden" name="competitionId" value={comp.id} />
-                                <input type="hidden" name="judgeId" value={r.judgeId} />
-                              </Form>
-                              <Form action={deleteRegistration} submit="מחיקה" submitClass="jud-btn-ghost sm danger" confirm={`למחוק את ההרשמה של ${fullName(r.judge)}? השיבוצים שלו/ה במפה יפונו.`} inline>
-                                <input type="hidden" name="competitionId" value={comp.id} />
-                                <input type="hidden" name="judgeId" value={r.judgeId} />
-                              </Form>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {inSession.length === 0 ? <div className="muted">אין שופטים רשומים להצגה זו.</div> : attendance(inSession, sessAssigns)}
           </div>
         );
       })}

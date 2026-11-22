@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser, managedCompetitionIds } from '@/lib/authz';
-import { fullName, sessionsOf } from '@/lib/utils';
+import { fullName, regSessionsLabel, sessionsOf } from '@/lib/utils';
 import { ROLE_OPTIONS } from '@/lib/constants';
 
 export default async function ReportsPage(props: { searchParams: Promise<{ c?: string }> }) {
@@ -63,7 +63,7 @@ export default async function ReportsPage(props: { searchParams: Promise<{ c?: s
                   <tr key={r.id}>
                     <td>{fullName(r.judge)}</td>
                     <td className="jud-mono">{r.judge.phone}</td>
-                    <td className="small">{r.sessions.map((id) => sessions.find((s) => s.id === id)?.label).filter(Boolean).join(', ')}</td>
+                    <td className="small">{regSessionsLabel(r.sessions, sessions)}</td>
                     <td>{r.lodging ? 'כן' : 'לא'}</td>
                     <td className="small">{r.noShow ? 'לא הגיע/ה' : r.walkIn ? 'הצטרפ/ה במקום' : 'נרשם/ה מראש'}</td>
                   </tr>

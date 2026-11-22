@@ -3,8 +3,8 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/authz';
 import Form from '@/components/Form';
-import { saveRegistration } from '@/actions/competition';
-import { fullName, iso, sessionsOf } from '@/lib/utils';
+import { cancelRegistration, saveRegistration } from '@/actions/competition';
+import { competitionPassed, fullName, iso, regCovers, regSessionsLabel, sessionsOf } from '@/lib/utils';
 
 export default async function CompetitionPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -16,13 +16,14 @@ export default async function CompetitionPage(props: { params: Promise<{ id: str
   const manage = user.isAdmin || comp.headJudges.some((h) => h.judgeId === user.id);
   const reg = await prisma.registration.findUnique({ where: { competitionId_judgeId: { competitionId: comp.id, judgeId: user.id } } });
   const count = await prisma.registration.count({ where: { competitionId: comp.id } });
+  const passed = competitionPassed(comp.date);
 
   return (
     <div className="stack">
       <Link href="/competitions" className="jud-btn-ghost" style={{ width: 'fit-content' }}>‹ חזרה לרשימת התחרויות</Link>
 
       <div className="card">
-        <div className="jud-mono" style={{ color: 'var(--accent)', fontSize: 13, marginBottom: 4 }}>תחרות מס׳ {comp.number}</div>
+        {comp.number && <div className="jud-mono" style={{ color: 'var(--accent)', fontSize: 13, marginBottom: 4 }}>תחרות מס׳ {comp.number}</div>}
         <h2 className="jud-heading" style={{ fontSize: 22, marginBottom: 10 }}>{comp.name}</h2>
         <div className="row muted" style={{ gap: 18, fontSize: 14 }}>
           <span className="jud-mono">{iso(comp.date)}</span>
@@ -57,27 +58,45 @@ export default async function CompetitionPage(props: { params: Promise<{ id: str
           <h3 className="jud-heading h3">רישום לתחרות</h3>
           <span className="small muted">{count} שופטים רשומים עד כה</span>
         </div>
-        {sessions.length === 0 ? (
-          <p className="muted">טרם הוגדרו הצגות לתחרות זו.</p>
+        {reg && (
+          <div className="msg ok" style={{ marginTop: 10 }}>
+            את/ה רשום/ה לתחרות זו ({regSessionsLabel(reg.sessions, sessions)}{reg.lodging ? ', עם לינה' : ''}).
+          </div>
+        )}
+        {passed ? (
+          <p className="muted" style={{ marginTop: 10 }}>התחרות כבר התקיימה, הרישום סגור.</p>
         ) : (
-          <Form action={saveRegistration} submit={reg ? 'עדכון רישום' : 'שליחת רישום'} className="stack">
-            <input type="hidden" name="competitionId" value={comp.id} />
-            <div className="grid2" style={{ marginTop: 14 }}>
-              <div><label className="lbl">שם מלא</label><input className="jud-input" disabled value={fullName(user)} readOnly /></div>
-              <div><label className="lbl">טלפון</label><input className="jud-input jud-mono" disabled value={user.phone} readOnly /></div>
-            </div>
-            <div>
-              <div className="lbl">הצגות בהן אוכל/ת לשפוט</div>
-              <div className="row">
-                {sessions.map((s) => (
-                  <label key={s.id} className="opt">
-                    <input type="checkbox" name="sessions" value={s.id} defaultChecked={reg?.sessions.includes(s.id)} /> {s.label}
-                  </label>
-                ))}
+          <>
+            <Form action={saveRegistration} submit={reg ? 'עדכון רישום' : 'הרשמה לתחרות'} className="stack">
+              <input type="hidden" name="competitionId" value={comp.id} />
+              <div className="grid2" style={{ marginTop: 14 }}>
+                <div><label className="lbl">שם מלא</label><input className="jud-input" disabled value={fullName(user)} readOnly /></div>
+                <div><label className="lbl">טלפון</label><input className="jud-input jud-mono" disabled value={user.phone} readOnly /></div>
               </div>
-            </div>
-            <label className="check"><input type="checkbox" name="lodging" defaultChecked={reg?.lodging} /> יש צורך בלינה</label>
-          </Form>
+              {sessions.length === 0 ? (
+                <p className="small muted">התחרות עדיין לא חולקה להצגות, ולכן הרישום הוא לכל התחרות. כשיוגדרו הצגות, השופט/ת הראשי/ת יוכל/תוכל לשבץ אותך בכל אחת מהן.</p>
+              ) : (
+                <div>
+                  <div className="lbl">הצגות בהן אוכל/ת לשפוט</div>
+                  <div className="row">
+                    {sessions.map((s) => (
+                      <label key={s.id} className="opt">
+                        <input type="checkbox" name="sessions" value={s.id} defaultChecked={reg ? regCovers(reg.sessions, s.id) : false} /> {s.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <label className="check"><input type="checkbox" name="lodging" defaultChecked={reg?.lodging} /> יש צורך בלינה</label>
+            </Form>
+            {reg && (
+              <div style={{ marginTop: 10 }}>
+                <Form action={cancelRegistration} submit="ביטול רישום" submitClass="jud-btn-ghost sm danger" confirm="לבטל את הרישום לתחרות? אם שובצת בעמדה, השיבוץ יפונה." inline>
+                  <input type="hidden" name="competitionId" value={comp.id} />
+                </Form>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

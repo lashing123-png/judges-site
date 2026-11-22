@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { assertManage, assertUser } from '@/lib/authz';
 import { run, UserError, type ActionResult } from '@/lib/action';
 import { ROLE_OPTIONS } from '@/lib/constants';
-import { sessionsOf } from '@/lib/utils';
+import { regCovers, sessionsOf } from '@/lib/utils';
 import { layoutForCompetition } from '@/lib/layouts';
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim();
@@ -22,7 +22,9 @@ export async function addWalkIn(_p: ActionResult, fd: FormData): Promise<ActionR
     if (!comp) throw new UserError('התחרות לא נמצאה');
     const valid = sessionsOf(comp.sessions).map((s) => s.id);
     const sessions = fd.getAll('sessions').map(String).filter((s) => valid.includes(s));
-    if (!judgeId || !sessions.length) throw new UserError('יש לבחור שופט/ת ולפחות הצגה אחת');
+    if (!judgeId) throw new UserError('יש לבחור שופט/ת');
+    // תחרות בלי הצגות: הוספה לכל התחרות (רשימת הצגות ריקה)
+    if (valid.length && !sessions.length) throw new UserError('יש לבחור לפחות הצגה אחת');
     const judge = await prisma.user.findFirst({ where: { id: judgeId, status: 'ACTIVE' } });
     if (!judge) throw new UserError('השופט/ת לא נמצא/ה');
 
@@ -30,7 +32,8 @@ export async function addWalkIn(_p: ActionResult, fd: FormData): Promise<ActionR
     if (ex)
       await prisma.registration.update({
         where: { id: ex.id },
-        data: { sessions: Array.from(new Set([...ex.sessions, ...sessions])), noShow: false },
+        // רשום/ה כבר לכל התחרות (רשימה ריקה) נשאר/ת כך; אחרת מוסיפים את ההצגות החדשות
+        data: { sessions: ex.sessions.length === 0 ? [] : Array.from(new Set([...ex.sessions, ...sessions])), noShow: false },
       });
     else await prisma.registration.create({ data: { competitionId, judgeId, sessions, walkIn: true } });
     refresh(competitionId);
@@ -103,7 +106,7 @@ export async function assignPosition(input: {
     }
     if (!ROLE_OPTIONS.includes(role)) throw new UserError('תפקיד לא תקין');
     const reg = await prisma.registration.findUnique({ where: { competitionId_judgeId: { competitionId, judgeId } } });
-    if (!reg || !reg.sessions.includes(sessionId) || reg.noShow) throw new UserError('השופט/ת אינו/ה רשום/ה ונוכח/ת בהצגה זו');
+    if (!reg || !regCovers(reg.sessions, sessionId) || reg.noShow) throw new UserError('השופט/ת אינו/ה רשום/ה ונוכח/ת בהצגה זו');
 
     await prisma.assignment.upsert({
       where: { competitionId_sessionId_positionId: { competitionId, sessionId, positionId } },

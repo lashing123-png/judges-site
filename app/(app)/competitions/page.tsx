@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/authz';
-import { iso } from '@/lib/utils';
+import { competitionPassed, iso } from '@/lib/utils';
 
 type SP = { q?: string; loc?: string; sort?: string; dir?: string };
 
@@ -56,7 +56,11 @@ export default async function CompetitionsPage(props: { searchParams: Promise<SP
                 <td className="jud-mono">{iso(c.date)}</td>
                 <td>{c.location}</td>
                 <td>{c.statuteUrl ? <a href={c.statuteUrl} target="_blank" rel="noreferrer">תקנון ↗</a> : '—'}</td>
-                <td><Link className="jud-btn-ghost" href={`/competitions/${c.id}`}>לעמוד התחרות ›</Link></td>
+                <td>
+                  <Link className={!mine.has(c.id) && !competitionPassed(c.date) ? 'jud-btn-primary' : 'jud-btn-ghost'} style={{ textDecoration: 'none', whiteSpace: 'nowrap' }} href={`/competitions/${c.id}`}>
+                    {!mine.has(c.id) && !competitionPassed(c.date) ? 'הרשמה ›' : 'לעמוד התחרות ›'}
+                  </Link>
+                </td>
               </tr>
             ))}
             {comps.length === 0 && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 20 }}>אין תחרויות התואמות את הסינון</td></tr>}

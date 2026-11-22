@@ -5,6 +5,19 @@ export const fullName = (u: { firstName: string; lastName: string }) => `${u.fir
 export const sessionsOf = (j: unknown): Session[] => (Array.isArray(j) ? (j as Session[]) : []);
 export const newSessionId = () => 's_' + Math.random().toString(36).slice(2, 8);
 
+// הרשמה בלי הצגות מסומנות = זמינות לכל התחרות (למשל תחרות מאתר האיגוד שעוד לא חולקה להצגות)
+export const regCovers = (regSessions: string[], sessionId: string) => regSessions.length === 0 || regSessions.includes(sessionId);
+export const regSessionsLabel = (regSessions: string[], sessions: Session[]) =>
+  regSessions.length === 0
+    ? 'כל התחרות'
+    : regSessions.map((id) => sessions.find((s) => s.id === id)?.label).filter(Boolean).join(', ');
+
+// התחרות כבר עברה (לפי יום, שעון ישראל): הרישום העצמי נסגר
+export function competitionPassed(date: Date, now = new Date()) {
+  const today = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }); // YYYY-MM-DD
+  return iso(date) < today;
+}
+
 export function seasonOf(d: Date) {
   const y = d.getUTCFullYear();
   const m = d.getUTCMonth() + 1;
