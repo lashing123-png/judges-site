@@ -3,7 +3,8 @@ import { requireUser, managedCompetitionIds } from '@/lib/authz';
 import { fullName, sessionsOf } from '@/lib/utils';
 import { ROLE_OPTIONS } from '@/lib/constants';
 
-export default async function ReportsPage({ searchParams }: { searchParams: { c?: string } }) {
+export default async function ReportsPage(props: { searchParams: Promise<{ c?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   const ids = await managedCompetitionIds(user);
   const comps = await prisma.competition.findMany({ where: { id: { in: ids } }, orderBy: { date: 'asc' } });

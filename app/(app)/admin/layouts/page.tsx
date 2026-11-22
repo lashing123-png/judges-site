@@ -6,7 +6,8 @@ import LayoutForm from '@/components/LayoutForm';
 import { deleteLayout, duplicateLayout } from '@/actions/admin';
 import { defaultPositions, type Position } from '@/lib/poolLayout';
 
-export default async function AdminLayouts({ searchParams }: { searchParams: { edit?: string } }) {
+export default async function AdminLayouts(props: { searchParams: Promise<{ edit?: string }> }) {
+  const searchParams = await props.searchParams;
   await requireAdminPage();
   const layouts = await prisma.poolLayout.findMany({ orderBy: { name: 'asc' } });
   const editing = searchParams.edit === 'new' ? 'new' : layouts.find((l) => l.id === searchParams.edit) ?? null;

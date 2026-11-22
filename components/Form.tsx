@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, type ReactNode } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useEffect, useRef, type ReactNode } from 'react';
+import { useFormStatus } from 'react-dom';
 import type { ActionResult } from '@/lib/action';
 
 const initial: ActionResult = { ok: false, message: '' };
@@ -28,7 +28,7 @@ type Props = {
 
 // עוטף Server Action: מציג הודעת הצלחה/שגיאה, מאפשר אישור לפני שליחה ואיפוס טופס
 export default function Form({ action, children, submit, submitClass, confirm, resetOnOk, className, inline }: Props) {
-  const [state, formAction] = useFormState(action, initial);
+  const [state, formAction] = useActionState(action, initial);
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (state.ok && resetOnOk) ref.current?.reset();

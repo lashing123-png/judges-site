@@ -6,7 +6,8 @@ import Form from '@/components/Form';
 import { saveRegistration } from '@/actions/competition';
 import { fullName, iso, sessionsOf } from '@/lib/utils';
 
-export default async function CompetitionPage({ params }: { params: { id: string } }) {
+export default async function CompetitionPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const comp = await prisma.competition.findUnique({ where: { id: params.id }, include: { headJudges: { include: { judge: true } } } });
   if (!comp) notFound();

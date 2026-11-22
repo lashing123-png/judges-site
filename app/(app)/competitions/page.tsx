@@ -5,7 +5,8 @@ import { iso } from '@/lib/utils';
 
 type SP = { q?: string; loc?: string; sort?: string; dir?: string };
 
-export default async function CompetitionsPage({ searchParams }: { searchParams: SP }) {
+export default async function CompetitionsPage(props: { searchParams: Promise<SP> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   const sort = ['name', 'date', 'location'].includes(searchParams.sort ?? '') ? (searchParams.sort as string) : 'date';
   const dir = searchParams.dir === 'desc' ? 'desc' : 'asc';

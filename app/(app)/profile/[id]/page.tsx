@@ -4,7 +4,8 @@ import { requireUser } from '@/lib/authz';
 import ProfileView from '@/components/ProfileView';
 
 // צפייה בכרטיס של שופט/ת אחר/ת: אדמין בלבד
-export default async function OtherProfile({ params, searchParams }: { params: { id: string }; searchParams: Record<string, string | undefined> }) {
+export default async function OtherProfile(props: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
+  const [params, searchParams] = await Promise.all([props.params, props.searchParams]);
   const me = await requireUser();
   if (!me.isAdmin) redirect('/profile');
   const target = await prisma.user.findUnique({ where: { id: params.id } });

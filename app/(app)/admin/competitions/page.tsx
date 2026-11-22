@@ -6,7 +6,8 @@ import CompetitionForm from '@/components/CompetitionForm';
 import { deleteCompetition } from '@/actions/admin';
 import { fullName, iso, sessionsOf } from '@/lib/utils';
 
-export default async function AdminCompetitions({ searchParams }: { searchParams: { edit?: string } }) {
+export default async function AdminCompetitions(props: { searchParams: Promise<{ edit?: string }> }) {
+  const searchParams = await props.searchParams;
   await requireAdminPage();
   const [comps, judges, layouts] = await Promise.all([
     prisma.competition.findMany({ orderBy: { date: 'asc' }, include: { poolLayout: true, headJudges: { include: { judge: true } } } }),

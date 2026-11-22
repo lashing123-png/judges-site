@@ -8,7 +8,8 @@ import Form from '@/components/Form';
 import SessionMap from '@/components/SessionMap';
 import { addNote, addWalkIn, deleteRegistration, toggleNoShow } from '@/actions/head';
 
-export default async function HeadCompetitionPage({ params }: { params: { id: string } }) {
+export default async function HeadCompetitionPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   // בדיקת הרשאה בשרת: אדמין, או שופט/ת ראשי/ת של התחרות הזו בלבד
   if (!(await canManage(user, params.id))) redirect('/head');

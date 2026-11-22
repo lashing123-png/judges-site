@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser, canManage } from '@/lib/authz';
 import { fullName, sessionsOf } from '@/lib/utils';
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params;
   const user = await getCurrentUser();
   if (!user) return new Response('Unauthorized', { status: 401 });
   // דו"ח רישום: אדמין או שופט/ת ראשי/ת של אותה תחרות בלבד
