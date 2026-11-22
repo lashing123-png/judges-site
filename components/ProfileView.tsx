@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import Form from './Form';
 import { updateProfile, changePassword } from '@/actions/profile';
 import { fullName, iso, seasonOf, sessionsOf } from '@/lib/utils';
+import { EXPERIENCE_ROLES, parseExperienceRoles } from '@/lib/constants';
 import type { User } from '@prisma/client';
 
 type SP = { season?: string; name?: string; loc?: string; role?: string };
@@ -9,6 +10,8 @@ type SP = { season?: string; name?: string; loc?: string; role?: string };
 export default async function ProfileView({ target, viewer, basePath, sp }: { target: User; viewer: User; basePath: string; sp: SP }) {
   const own = target.id === viewer.id;
   const admin = viewer.isAdmin;
+  const targetRoles = parseExperienceRoles(target.roleExperience);
+  const legacyRoles = targetRoles.filter((r) => !EXPERIENCE_ROLES.includes(r));
 
   const rows = (
     await prisma.assignment.findMany({ where: { judgeId: target.id }, include: { competition: true } })
@@ -55,8 +58,20 @@ export default async function ProfileView({ target, viewer, basePath, sp }: { ta
               <span className={`jud-chip ${admin ? 'chip-ok' : 'chip-lock'}`}>{admin ? 'ניתן לעריכה (מנהל/ת)' : 'לעריכת מנהל/ת בלבד'}</span>
             </div>
             <p className="small muted" style={{ marginBottom: 12 }}>שדות אלה מתעדכנים רק ע״י מנהל/ת המערכת.</p>
-            <div className="grid3">
-              <div><label className="lbl">ניסיון בתפקידים</label><textarea className="jud-input" rows={2} name="roleExperience" defaultValue={target.roleExperience} disabled={!admin} /></div>
+            <div style={{ marginBottom: 14 }}>
+              <label className="lbl">ניסיון בתפקידים</label>
+              <div className="row">
+                {EXPERIENCE_ROLES.map((r) => (
+                  <label key={r} className="opt">
+                    <input type="checkbox" name="roleExperience" value={r} defaultChecked={targetRoles.includes(r)} disabled={!admin} /> {r}
+                  </label>
+                ))}
+              </div>
+              {legacyRoles.length > 0 && (
+                <p className="small muted" style={{ marginTop: 6 }}>ערך קודם שאינו ברשימה: {legacyRoles.join(', ')}</p>
+              )}
+            </div>
+            <div className="grid2">
               <div><label className="lbl">השתתפות בקורסים</label><textarea className="jud-input" rows={2} name="courses" defaultValue={target.courses} disabled={!admin} /></div>
               <div><label className="lbl">השתתפות בתחרויות בינ״ל</label><textarea className="jud-input" rows={2} name="internationalComps" defaultValue={target.internationalComps} disabled={!admin} /></div>
             </div>

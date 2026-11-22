@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { assertUser } from '@/lib/authz';
 import { audit } from '@/lib/audit';
 import { run, UserError, type ActionResult } from '@/lib/action';
+import { serializeExperienceRoles } from '@/lib/constants';
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim();
 const intOrNull = (v: string) => {
@@ -43,7 +44,8 @@ export async function updateProfile(_prev: ActionResult, fd: FormData): Promise<
       Object.assign(data, {
         firstName: fn,
         lastName: ln,
-        roleExperience: str(fd, 'roleExperience'),
+        // רק ערכים מתוך הרשימה הקבועה נשמרים; כל ערך אחר נזרק.
+        roleExperience: serializeExperienceRoles(fd.getAll('roleExperience').map(String)),
         courses: str(fd, 'courses'),
         internationalComps: str(fd, 'internationalComps'),
       });
