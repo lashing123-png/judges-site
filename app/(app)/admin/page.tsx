@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requireAdminPage } from '@/lib/authz';
 import Form from '@/components/Form';
+import ImportJudgesForm from '@/components/ImportJudgesForm';
 import { approveUser, createUser, rejectUser, resetPassword, setAdmin, setStatus } from '@/actions/admin';
 import { fullName } from '@/lib/utils';
 
@@ -77,6 +78,16 @@ export default async function AdminUsers() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="card">
+        <h3 className="jud-heading h3" style={{ marginBottom: 10 }}>ייבוא שופטים מקובץ</h3>
+        <p className="small muted" style={{ marginBottom: 12 }}>
+          ייבוא מקובץ Excel או CSV, למשל ייצוא בעלי התפקידים של איגוד השחייה. העמודות מזוהות לפי הכותרת (שם פרטי, שם משפחה, מייל, טלפון, אגודה, ותק), והמייל משמש לזיהוי.
+          שופטים חדשים נוצרים כחשבונות פעילים ללא סיסמה ידועה: כדי לתת גישה, יש ללחוץ &quot;איפוס סיסמה&quot; ולהעביר את הסיסמה הזמנית. אצל שופטים קיימים מתמלאים רק שדות ריקים.
+          תעודת זהות, תאריך לידה וכתובת אינם מיובאים.
+        </p>
+        <ImportJudgesForm />
       </div>
 
       <div className="card">
