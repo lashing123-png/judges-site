@@ -19,6 +19,7 @@ function newId(existing: Position[]) {
 export default function LayoutForm({ initial }: { initial: { id?: string; name: string; laneCount: number; isDefault: boolean; positions: Position[] } }) {
   const [lanes, setLanes] = useState(initial.laneCount);
   const [positions, setPositions] = useState<Position[]>(initial.positions);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   let err = '';
   try {
@@ -60,7 +61,7 @@ export default function LayoutForm({ initial }: { initial: { id?: string; name: 
             <thead><tr><th>שם העמדה</th><th>תפקיד ברירת מחדל</th><th>אופקי</th><th>אנכי</th><th></th></tr></thead>
             <tbody>
               {positions.map((p) => (
-                <tr key={p.id}>
+                <tr key={p.id} className={activeId === p.id ? 'row-active' : ''} onFocus={() => setActiveId(p.id)}>
                   <td><input className="jud-input" value={p.label} onChange={(e) => update(p.id, { label: e.target.value })} aria-label="שם העמדה" /></td>
                   <td>
                     <select className="jud-input" value={p.defaultRole} onChange={(e) => update(p.id, { defaultRole: e.target.value })} aria-label="תפקיד ברירת מחדל">
@@ -80,8 +81,20 @@ export default function LayoutForm({ initial }: { initial: { id?: string; name: 
 
       {err ? <div className="msg err">{err}</div> : (
         <div>
-          <div className="lbl">תצוגה מקדימה ({positions.length} עמדות)</div>
-          <PoolMap positions={positions} laneCount={lanes} title="תצוגה מקדימה" />
+          <div className="lbl">תצוגה מקדימה ({positions.length} עמדות). אפשר לגרור עמדה על המפה כדי להזיז אותה</div>
+          <PoolMap
+            positions={positions}
+            laneCount={lanes}
+            title="תצוגה מקדימה"
+            onMove={(id, x, y) => update(id, { x, y })}
+            activeId={activeId}
+            onActivate={setActiveId}
+          />
+          {activeId && (
+            <div className="small muted" style={{ marginTop: 6 }}>
+              עמדה נבחרת: {positions.find((p) => p.id === activeId)?.label} ({positions.find((p) => p.id === activeId)?.x}, {positions.find((p) => p.id === activeId)?.y})
+            </div>
+          )}
         </div>
       )}
     </Form>

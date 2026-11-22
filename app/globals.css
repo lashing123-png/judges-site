@@ -84,6 +84,11 @@ textarea.jud-input{resize:vertical}
 .jud-map-marker{cursor:pointer}
 .jud-map-marker:hover .mp-dot{stroke-width:3.5}
 .jud-map-marker.ro{cursor:default}
+.mapwrap svg.draggable{touch-action:none;user-select:none}
+.jud-map-marker.drag{cursor:grab}
+.mapwrap svg.dragging,.mapwrap svg.dragging .jud-map-marker{cursor:grabbing}
+.jud-map-marker.active .mp-dot{fill:var(--primary-tint);stroke-width:3.5}
+tr.row-active td{background:var(--primary-tint)}
 .modal-ov{position:fixed;inset:0;background:rgba(10,25,28,.55);z-index:60;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal{background:var(--surface);color:var(--ink);border-radius:14px;padding:20px;width:min(460px,94vw);max-height:85vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.35)}
 #toast{position:fixed;bottom:18px;inset-inline:0;display:flex;justify-content:center;pointer-events:none;z-index:80}
