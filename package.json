@@ -7,8 +7,8 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:push": "dotenv -e .env.local -e .env -- prisma db push",
+    "db:seed": "dotenv -e .env.local -e .env -- tsx prisma/seed.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -25,6 +25,7 @@
     "@types/node": "^20.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "dotenv-cli": "^11.1.0",
     "prisma": "^5.22.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0"
