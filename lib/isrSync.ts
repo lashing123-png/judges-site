@@ -1,5 +1,17 @@
 import { prisma } from './prisma';
 import { audit } from './audit';
+import { sessionsOf, type Session } from './utils';
+import {
+  LOGLIG_BASE,
+  buildSessions,
+  parseDayTabs,
+  parseLogligId,
+  parseLogligStarts,
+  parseLogligStatute,
+  remapSessionIds,
+  sameSessions,
+  sessionsManagedBySync,
+} from './isrSessions';
 
 // סנכרון תחרויות מאתר איגוד השחייה (isr.org.il): רק תחרויות עם לוגו "שחייה" (swim-olympic.png),
 // בלי מים פתוחים, שחייה אמנותית או מאסטרס.
@@ -64,7 +76,7 @@ export function parseCompetitionList(html: string): { swim: IsrCompetition[]; ot
   return { swim, otherTypes };
 }
 
-export function parseCompetitionDetails(html: string): { location: string; fileUrl: string } {
+export function parseCompetitionDetails(html: string): { location: string; fileUrl: string; dayTabs: string[]; logligId: string | null } {
   const location = decode(html.match(/<img[^>]*alt="מקום התחרות"[^>]*>\s*<br\s*\/?>([^<]*)</)?.[1] ?? '');
   const filesBlock = html.match(/<img[^>]*alt="קבצי מידע לתחרות"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? '';
   const href = filesBlock.match(/href="([^"]+)"/)?.[1];
@@ -77,7 +89,27 @@ export function parseCompetitionDetails(html: string): { location: string; fileU
       /* קישור לא תקין: מדלגים */
     }
   }
-  return { location: location.slice(0, 200), fileUrl };
+  return { location: location.slice(0, 200), fileUrl, dayTabs: parseDayTabs(html), logligId: parseLogligId(html) };
+}
+
+type Details = ReturnType<typeof parseCompetitionDetails> & { sessions: Session[]; logligStatute: string };
+
+// עמוד התחרות באיגוד + (אם מקושר) תוכנית המשחים במערכת התוצאות
+async function fetchDetails(compId: number): Promise<Details> {
+  const d = parseCompetitionDetails(await get(`${BASE}comp.asp?compID=${compId}`));
+  let starts: string[] = [];
+  let logligStatute = '';
+  if (d.logligId) {
+    try {
+      const lh = await get(`${LOGLIG_BASE}LeagueTable/AthleticsDisciplines/${d.logligId}`);
+      starts = parseLogligStarts(lh);
+      logligStatute = parseLogligStatute(lh);
+    } catch (e) {
+      // מערכת התוצאות לא זמינה: ממשיכים עם לשוניות הימים מאתר האיגוד
+      console.error('loglig fetch failed', d.logligId, e);
+    }
+  }
+  return { ...d, sessions: buildSessions(d.dayTabs, starts), logligStatute };
 }
 
 async function get(url: string) {
@@ -101,18 +133,29 @@ async function pool<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): 
   return out;
 }
 
-export type SyncSummary = { season: string; found: number; created: number; updated: number; unchanged: number; missingFromIsr: number; detailErrors: number; skippedOtherTypes: number };
+export type SyncSummary = {
+  season: string;
+  found: number;
+  created: number;
+  updated: number;
+  unchanged: number;
+  missingFromIsr: number;
+  detailErrors: number;
+  skippedOtherTypes: number;
+  sessionsUpdated: number; // תחרויות שההצגות שלהן נוצרו/עודכנו מהאיגוד
+  sessionsLocked: number; // תחרויות שההצגות באיגוד השתנו אבל כבר יש בהן שיבוצים, ולכן לא שונו
+};
 
 export async function syncIsrCompetitions(actorId: string | null = null, seasonYear = currentSeasonYear()): Promise<SyncSummary> {
   const listUrl = `${BASE}Competitions.ASP?cYear=${seasonYear}&cMonth=0&cType=0&cMode=0&isFinish=`;
   const { swim, otherTypes } = parseCompetitionList(await get(listUrl));
   if (swim.length === 0 && otherTypes === 0) throw new Error('לא נמצאו תחרויות בעמוד האיגוד (ייתכן שמבנה העמוד השתנה)');
 
-  // פרטים (מקום וקובץ מידע) מכל עמוד תחרות
+  // פרטים מכל עמוד תחרות (מקום, קובץ מידע, ימים) ותוכנית המשחים במערכת התוצאות אם יש
   let detailErrors = 0;
   const details = await pool(swim, 3, async (c) => {
     try {
-      return parseCompetitionDetails(await get(`${BASE}comp.asp?compID=${c.compId}`));
+      return await fetchDetails(c.compId);
     } catch (e) {
       detailErrors++;
       console.error('isr detail failed', c.compId, e);
@@ -120,31 +163,60 @@ export async function syncIsrCompetitions(actorId: string | null = null, seasonY
     }
   });
 
-  const existing = await prisma.competition.findMany({ where: { isrCompId: { in: swim.map((c) => c.compId) } } });
+  const existing = await prisma.competition.findMany({
+    where: { isrCompId: { in: swim.map((c) => c.compId) } },
+    include: { _count: { select: { assignments: true } } },
+  });
   const byId = new Map(existing.map((c) => [c.isrCompId!, c]));
-  let created = 0, updated = 0, unchanged = 0;
+  let created = 0, updated = 0, unchanged = 0, sessionsUpdated = 0, sessionsLocked = 0;
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
 
   for (let k = 0; k < swim.length; k++) {
     const c = swim[k];
     const d = details[k];
     const cur = byId.get(c.compId);
+    // קובץ המידע מהאיגוד; אם אין, התקנון ממערכת התוצאות
+    const fileUrl = d ? d.fileUrl || d.logligStatute : '';
     if (!cur) {
       await prisma.competition.create({
-        data: { isrCompId: c.compId, name: c.name, date: c.date, location: d?.location ?? '', statuteUrl: d?.fileUrl ?? '' },
+        data: { isrCompId: c.compId, name: c.name, date: c.date, location: d?.location ?? '', statuteUrl: fileUrl, sessions: d?.sessions ?? [] },
       });
       created++;
+      if (d?.sessions.length) sessionsUpdated++;
       continue;
     }
-    // האיגוד הוא מקור האמת לשם, תאריך, מקום וקובץ. הצגות, תבנית מפה, שופטים ראשיים ושיבוצים לא נוגעים.
+    // האיגוד הוא מקור האמת לשם, תאריך, מקום, קובץ והצגות. תבנית מפה, שופטים ראשיים ושיבוצים לא נוגעים.
     const data: Record<string, unknown> = {};
     if (cur.name !== c.name) data.name = c.name;
     if (cur.date.getTime() !== c.date.getTime()) data.date = c.date;
     if (d && d.location && cur.location !== d.location) data.location = d.location;
-    if (d && d.fileUrl && cur.statuteUrl !== d.fileUrl) data.statuteUrl = d.fileUrl;
+    if (fileUrl && cur.statuteUrl !== fileUrl) data.statuteUrl = fileUrl;
+
+    // הצגות: רק אם הסנכרון מנהל אותן (לא הוגדרו ידנית), התחרות עוד לא עברה, ואין עדיין שיבוצים במפה
+    let remap = false;
+    const curSessions = sessionsOf(cur.sessions);
+    if (d && sessionsManagedBySync(curSessions) && !sameSessions(curSessions, d.sessions) && c.date.toISOString().slice(0, 10) >= today) {
+      if (cur._count.assignments > 0) sessionsLocked++;
+      else {
+        data.sessions = d.sessions;
+        remap = true;
+      }
+    }
+
     if (Object.keys(data).length) {
       await prisma.competition.update({ where: { id: cur.id }, data });
       updated++;
     } else unchanged++;
+
+    if (remap && d) {
+      sessionsUpdated++;
+      // הרשמות להצגות שהשתנו עוברות להצגות המתאימות באותו יום (הרשמה לכל התחרות, רשימה ריקה, נשארת כך)
+      const regs = await prisma.registration.findMany({ where: { competitionId: cur.id, NOT: { sessions: { isEmpty: true } } } });
+      for (const r of regs) {
+        const next = remapSessionIds(r.sessions, d.sessions);
+        if (next.join() !== r.sessions.join()) await prisma.registration.update({ where: { id: r.id }, data: { sessions: next } });
+      }
+    }
   }
 
   // תחרויות שסונכרנו בעבר מאותה עונה ונעלמו מאתר האיגוד: לא מוחקים (ייתכן שיש הרשמות), רק מדווחים
@@ -163,11 +235,15 @@ export async function syncIsrCompetitions(actorId: string | null = null, seasonY
     missingFromIsr,
     detailErrors,
     skippedOtherTypes: otherTypes,
+    sessionsUpdated,
+    sessionsLocked,
   };
   await audit(
     actorId,
     'סנכרון תחרויות מאתר האיגוד',
     `עונה ${summary.season}: ${created} חדשות, ${updated} עודכנו, ${unchanged} ללא שינוי` +
+      (sessionsUpdated ? `, הצגות עודכנו ב-${sessionsUpdated} תחרויות` : '') +
+      (sessionsLocked ? `, ${sessionsLocked} תחרויות עם שיבוצים: ההצגות לא שונו` : '') +
       (missingFromIsr ? `, ${missingFromIsr} כבר לא מופיעות באתר האיגוד` : '') +
       (detailErrors ? `, ${detailErrors} עמודי פרטים נכשלו` : ''),
   );

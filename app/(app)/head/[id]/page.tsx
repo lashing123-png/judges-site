@@ -142,7 +142,8 @@ export default async function HeadCompetitionPage(props: { params: Promise<{ id:
         return (
           <div key={s.id} className="card">
             <h3 className="jud-heading h3" style={{ marginBottom: 12 }}>
-              {s.label} {s.datetime && <span className="small muted jud-mono" style={{ fontWeight: 400 }}>{fmtDateTime(s.datetime)}</span>}
+              {/* הצגות מהאיגוד (isr-) כבר כוללות יום ושעה בשם */}
+              {s.label} {s.datetime && !s.id.startsWith('isr-') && <span className="small muted jud-mono" style={{ fontWeight: 400 }}>{fmtDateTime(s.datetime)}</span>}
             </h3>
             {layout ? (
               <SessionMap competitionId={comp.id} sessionId={s.id} title={s.label} positions={layout.positions} laneCount={layout.laneCount} assigned={assigned} present={present} />
