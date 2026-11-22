@@ -4,15 +4,17 @@ import { requireAdminPage } from '@/lib/authz';
 import Form from '@/components/Form';
 import CompetitionForm from '@/components/CompetitionForm';
 import { deleteCompetition } from '@/actions/admin';
+import { syncIsrNow } from '@/actions/isrSync';
 import { fullName, iso, sessionsOf } from '@/lib/utils';
 
 export default async function AdminCompetitions(props: { searchParams: Promise<{ edit?: string }> }) {
   const searchParams = await props.searchParams;
   await requireAdminPage();
-  const [comps, judges, layouts] = await Promise.all([
+  const [comps, judges, layouts, lastSync] = await Promise.all([
     prisma.competition.findMany({ orderBy: { date: 'asc' }, include: { poolLayout: true, headJudges: { include: { judge: true } } } }),
     prisma.user.findMany({ where: { status: 'ACTIVE' }, orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }] }),
     prisma.poolLayout.findMany({ orderBy: { name: 'asc' } }),
+    prisma.auditLog.findFirst({ where: { action: 'סנכרון תחרויות מאתר האיגוד' }, orderBy: { createdAt: 'desc' } }),
   ]);
   const editing = searchParams.edit === 'new' ? 'new' : comps.find((c) => c.id === searchParams.edit) ?? null;
   const initial =
@@ -39,6 +41,14 @@ export default async function AdminCompetitions(props: { searchParams: Promise<{
         <div className="row between" style={{ marginBottom: 12 }}>
           <h2 className="jud-heading h2">ניהול תחרויות</h2>
           <Link href="/admin/competitions?edit=new" className="jud-btn-primary" style={{ textDecoration: 'none' }}>+ תחרות חדשה</Link>
+        </div>
+        <div className="row between" style={{ marginBottom: 12, alignItems: 'flex-start' }}>
+          <p className="small muted" style={{ flex: '1 1 300px' }}>
+            תחרויות השחייה (בלי מים פתוחים, שחייה אמנותית ומאסטרס) מתעדכנות אוטומטית כל יום מ<a href="https://isr.org.il/Competitions.ASP" target="_blank" rel="noreferrer">אתר איגוד השחייה</a>.
+            שם, תאריך, מקום וקובץ המידע נלקחים מהאיגוד ומתעדכנים לפיו; הצגות, תבנית מפה ושופטים ראשיים נשארים כפי שהוגדרו כאן.
+            {lastSync && <> סנכרון אחרון: {lastSync.createdAt.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })} ({lastSync.detail}).</>}
+          </p>
+          <Form action={syncIsrNow} submit="סנכרון עכשיו מאתר האיגוד" submitClass="jud-btn-ghost sm" inline />
         </div>
         <div className="tblwrap">
           <table className="jud-table">

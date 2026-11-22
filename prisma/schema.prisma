@@ -57,6 +57,7 @@ model Competition {
   announcement String   @default("")
   sessions     Json     @default("[]") // [{ id, label, datetime }]
   poolLayoutId String?
+  isrCompId    Int?     @unique // מזהה התחרות באתר איגוד השחייה (comp.asp?compID=...), לסנכרון היומי
   createdAt    DateTime @default(now())
 
   poolLayout    PoolLayout?            @relation(fields: [poolLayoutId], references: [id], onDelete: SetNull)

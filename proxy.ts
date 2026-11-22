@@ -5,5 +5,6 @@ import { withAuth } from 'next-auth/middleware';
 export default withAuth({ pages: { signIn: '/login' } });
 
 export const config = {
-  matcher: ['/((?!login|register|api/auth|_next/static|_next/image|favicon.ico).*)'],
+  // api/cron: המשימות המתוזמנות של Vercel, מוגנות ב-CRON_SECRET בתוך ה-route עצמו
+  matcher: ['/((?!login|register|api/auth|api/cron|_next/static|_next/image|favicon.ico).*)'],
 };

@@ -1,4 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "schedules": {
+    "isr-competitions-sync": {
+      "schedule": "0 3 * * *",
+      "timezone": "Asia/Jerusalem",
+      "path": "/api/cron/isr-sync",
+      "requestMethod": "GET"
+    }
+  }
 }
