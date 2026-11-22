@@ -48,6 +48,9 @@ textarea.jud-input{resize:vertical}
 .jud-table th{text-align:start;font-size:12.5px;color:var(--ink-soft);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
 .jud-table td{padding:9px 10px;font-size:14px;border-bottom:1px solid var(--line);vertical-align:middle}
 .jud-table tbody tr:hover td{background:var(--primary-tint)}
+.sort-th{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;white-space:nowrap}
+.sort-th:hover,.sort-th.on{color:var(--link)}
+.sort-th span{font-size:10px}
 .jud-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
 .chip-accent{background:var(--accent-tint);color:var(--accent)}
 .chip-lock{background:var(--lock-tint);color:var(--lock)}

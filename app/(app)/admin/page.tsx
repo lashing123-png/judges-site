@@ -1,16 +1,10 @@
-import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requireAdminPage } from '@/lib/authz';
 import Form from '@/components/Form';
 import ImportJudgesForm from '@/components/ImportJudgesForm';
-import { approveUser, createUser, rejectUser, resetPassword, setAdmin, setStatus } from '@/actions/admin';
+import JudgesTable from '@/components/JudgesTable';
+import { approveUser, createUser, rejectUser } from '@/actions/admin';
 import { fullName } from '@/lib/utils';
-
-const STATUS: Record<string, { label: string; cls: string }> = {
-  ACTIVE: { label: 'פעיל/ה', cls: 'chip-ok' },
-  PENDING: { label: 'ממתין/ה לאישור', cls: 'chip-accent' },
-  DISABLED: { label: 'מושבת/ת', cls: 'chip-lock' },
-};
 
 export default async function AdminUsers() {
   const me = await requireAdminPage();
@@ -52,32 +46,10 @@ export default async function AdminUsers() {
 
       <div className="card">
         <h2 className="jud-heading h2" style={{ marginBottom: 10 }}>שופטים וחשבונות</h2>
-        <div className="tblwrap">
-          <table className="jud-table">
-            <thead><tr><th>שם</th><th>מייל</th><th>סטטוס</th><th>הרשאה</th><th>פעולות</th></tr></thead>
-            <tbody>
-              {others.map((u) => (
-                <tr key={u.id} style={{ opacity: u.status === 'DISABLED' ? 0.6 : 1 }}>
-                  <td style={{ fontWeight: 600 }}><Link href={`/profile/${u.id}`}>{fullName(u)}</Link></td>
-                  <td dir="ltr" style={{ textAlign: 'right' }}>{u.email}</td>
-                  <td><span className={`jud-chip ${STATUS[u.status].cls}`}>{STATUS[u.status].label}</span></td>
-                  <td>{u.isAdmin ? <span className="jud-chip chip-tint">מנהל/ת מערכת</span> : 'שופט/ת'}</td>
-                  <td>
-                    {u.id === me.id ? (
-                      <span className="small muted">החשבון שלך</span>
-                    ) : (
-                      <div className="row" style={{ gap: 6 }}>
-                        <Form action={setAdmin} submit={u.isAdmin ? 'ביטול אדמין' : 'הפוך/י לאדמין'} submitClass="jud-btn-ghost sm" confirm={u.isAdmin ? 'לבטל הרשאת אדמין?' : 'לתת הרשאת אדמין מלאה?'} inline><input type="hidden" name="userId" value={u.id} /></Form>
-                        <Form action={setStatus} submit={u.status === 'ACTIVE' ? 'השבתה' : 'הפעלה'} submitClass={`jud-btn-ghost sm ${u.status === 'ACTIVE' ? 'danger' : ''}`} inline><input type="hidden" name="userId" value={u.id} /></Form>
-                        <Form action={resetPassword} submit="איפוס סיסמה" submitClass="jud-btn-ghost sm" confirm="ליצור סיסמה זמנית חדשה?" inline><input type="hidden" name="userId" value={u.id} /></Form>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <JudgesTable
+          meId={me.id}
+          users={others.map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email, club: u.club, phone: u.phone, status: u.status, isAdmin: u.isAdmin }))}
+        />
       </div>
 
       <div className="card">

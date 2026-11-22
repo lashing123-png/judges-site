@@ -6,6 +6,7 @@ import PoolMap from './PoolMap';
 import { saveLayout } from '@/actions/admin';
 import { ROLE_OPTIONS } from '@/lib/constants';
 import { laneTimers, validatePositions, type Position } from '@/lib/poolLayout';
+import { SortTh, matchesSearch, useTableSort } from './tableSort';
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
@@ -20,6 +21,14 @@ export default function LayoutForm({ initial }: { initial: { id?: string; name: 
   const [lanes, setLanes] = useState(initial.laneCount);
   const [positions, setPositions] = useState<Position[]>(initial.positions);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const sort = useTableSort<'order' | 'label' | 'role' | 'x' | 'y'>('order');
+  // החיפוש והמיון משפיעים רק על התצוגה בטבלה; סדר העמדות שנשמר לא משתנה
+  const order = new Map(positions.map((p, i) => [p.id, i]));
+  const shown = sort.sort(
+    positions.filter((p) => matchesSearch(q, [p.label, p.defaultRole])),
+    (p, k) => (k === 'order' ? order.get(p.id)! : k === 'label' ? p.label : k === 'role' ? p.defaultRole : p[k]),
+  );
 
   let err = '';
   try {
@@ -32,8 +41,10 @@ export default function LayoutForm({ initial }: { initial: { id?: string; name: 
 
   const update = (id: string, patch: Partial<Position>) => setPositions((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   const remove = (id: string) => setPositions((ps) => ps.filter((p) => p.id !== id));
-  const add = () =>
+  const add = () => {
+    setQ(''); // כדי שהעמדה החדשה תופיע בטבלה
     setPositions((ps) => [...ps, { id: newId(ps), label: 'עמדה חדשה', defaultRole: ROLE_OPTIONS[0], x: 500, y: 700 }]);
+  };
   const rebuild = () => setPositions((ps) => [...ps.filter((p) => !/^timer-\d+-[ab]$/.test(p.id)), ...laneTimers(lanes)]);
 
   return (
@@ -56,11 +67,39 @@ export default function LayoutForm({ initial }: { initial: { id?: string; name: 
           <button type="button" className="jud-btn-ghost sm" onClick={add}>+ הוספת עמדה</button>
         </div>
         <p className="small muted" style={{ marginBottom: 8 }}>מיקום על המפה: אופקי 0–1000 (0 = קצה שמאל), אנכי 0–780 (0 = למעלה). הבריכה עצמה בטווח 230–830 אופקי ו-90–550 אנכי.</p>
+        <div className="row" style={{ marginBottom: 8 }}>
+          <input
+            className="jud-input"
+            style={{ flex: '1 1 240px', width: 'auto' }}
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} // השדה בתוך טופס השמירה: Enter לא ישמור
+            placeholder="חיפוש לפי שם עמדה או תפקיד"
+            aria-label="חיפוש עמדות"
+          />
+          {q && <span className="small muted">{shown.length} מתוך {positions.length}</span>}
+        </div>
         <div className="tblwrap" style={{ maxHeight: 380, overflow: 'auto' }}>
           <table className="jud-table">
-            <thead><tr><th>שם העמדה</th><th>תפקיד ברירת מחדל</th><th>אופקי</th><th>אנכי</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <SortTh k="label" label="שם העמדה" sort={sort} />
+                <SortTh k="role" label="תפקיד ברירת מחדל" sort={sort} />
+                <SortTh k="x" label="אופקי" sort={sort} />
+                <SortTh k="y" label="אנכי" sort={sort} />
+                <th>
+                  {sort.key !== 'order' && (
+                    <button type="button" className="sort-th" onClick={() => sort.toggle('order')}>סדר מקורי</button>
+                  )}
+                </th>
+              </tr>
+            </thead>
             <tbody>
-              {positions.map((p) => (
+              {shown.length === 0 && (
+                <tr><td colSpan={5} className="muted">לא נמצאו עמדות התואמות לחיפוש.</td></tr>
+              )}
+              {shown.map((p) => (
                 <tr key={p.id} className={activeId === p.id ? 'row-active' : ''} onFocus={() => setActiveId(p.id)}>
                   <td><input className="jud-input" value={p.label} onChange={(e) => update(p.id, { label: e.target.value })} aria-label="שם העמדה" /></td>
                   <td>
