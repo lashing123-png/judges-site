@@ -17,6 +17,7 @@ export async function syncIsrNow(_p: ActionResult, _fd: FormData): Promise<Actio
       (s.sessionsUpdated ? ` הצגות נוצרו או עודכנו ב-${s.sessionsUpdated} תחרויות.` : '') +
       (s.sessionsLocked ? ` ב-${s.sessionsLocked} תחרויות ההצגות באיגוד השתנו אבל כבר יש שיבוצים, ולכן לא שונו.` : '') +
       (s.missingFromIsr ? ` ${s.missingFromIsr} תחרויות שסונכרנו בעבר כבר לא מופיעות באתר האיגוד (לא נמחקו).` : '') +
+      (s.ignored ? ` ${s.ignored} תחרויות מוסתרות מהסנכרון דולגו.` : '') +
       (s.detailErrors ? ` ${s.detailErrors} עמודי פרטים לא נטענו, ינסו שוב בסנכרון הבא.` : '')
     );
   });

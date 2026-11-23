@@ -165,11 +165,38 @@ export async function deleteCompetition(_p: ActionResult, fd: FormData): Promise
     const me = await assertAdmin();
     const c = await prisma.competition.findUnique({ where: { id: str(fd, 'id') } });
     if (!c) throw new UserError('התחרות לא נמצאה');
-    await prisma.competition.delete({ where: { id: c.id } });
-    await audit(me.id, 'מחיקת תחרות', c.name);
+    const isrCompId = c.isrCompId;
+    if (isrCompId != null) {
+      // תחרות מאתר האיגוד: מסתירים אותה מהסנכרון כדי שלא תיווצר מחדש בלילה
+      await prisma.$transaction([
+        prisma.competition.delete({ where: { id: c.id } }),
+        prisma.isrIgnoredCompetition.upsert({
+          where: { isrCompId },
+          create: { isrCompId, name: c.name, date: c.date },
+          update: { name: c.name, date: c.date },
+        }),
+      ]);
+    } else {
+      await prisma.competition.delete({ where: { id: c.id } });
+    }
+    await audit(me.id, 'מחיקת תחרות', c.name + (isrCompId != null ? ` (הוסתרה מסנכרון האיגוד, מזהה ${isrCompId})` : ''));
     revalidatePath('/admin/competitions');
     revalidatePath('/competitions');
-    return 'התחרות נמחקה';
+    return isrCompId != null ? 'התחרות נמחקה והוסתרה מהסנכרון היומי' : 'התחרות נמחקה';
+  });
+}
+
+// החזרת תחרות שהוסתרה: הסנכרון הבא (או "סנכרון עכשיו") ייצור אותה מחדש מאתר האיגוד
+export async function unhideIsrCompetition(_p: ActionResult, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    const me = await assertAdmin();
+    const isrCompId = parseInt(str(fd, 'isrCompId'), 10);
+    const x = Number.isFinite(isrCompId) ? await prisma.isrIgnoredCompetition.findUnique({ where: { isrCompId } }) : null;
+    if (!x) throw new UserError('התחרות לא נמצאה ברשימת המוסתרות');
+    await prisma.isrIgnoredCompetition.delete({ where: { isrCompId } });
+    await audit(me.id, 'החזרת תחרות לסנכרון', `${x.name} (מזהה ${isrCompId})`);
+    revalidatePath('/admin/competitions');
+    return 'התחרות הוחזרה לסנכרון: היא תיווצר מחדש בסנכרון הבא (אפשר ללחוץ "סנכרון עכשיו")';
   });
 }
 

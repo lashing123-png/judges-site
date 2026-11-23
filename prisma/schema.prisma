@@ -124,6 +124,14 @@ model Note {
   author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
 }
 
+// תחרויות מאתר האיגוד שמנהל/ת מחק/ה: הסנכרון היומי לא יוצר אותן מחדש (עד שמחזירים אותן)
+model IsrIgnoredCompetition {
+  isrCompId Int      @id
+  name      String
+  date      DateTime
+  createdAt DateTime @default(now())
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   actorId   String?

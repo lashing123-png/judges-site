@@ -144,12 +144,21 @@ export type SyncSummary = {
   skippedOtherTypes: number;
   sessionsUpdated: number; // תחרויות שההצגות שלהן נוצרו/עודכנו מהאיגוד
   sessionsLocked: number; // תחרויות שההצגות באיגוד השתנו אבל כבר יש בהן שיבוצים, ולכן לא שונו
+  ignored: number; // תחרויות שהוסתרו מהסנכרון (נמחקו ע"י מנהל/ת)
 };
 
 export async function syncIsrCompetitions(actorId: string | null = null, seasonYear = currentSeasonYear()): Promise<SyncSummary> {
   const listUrl = `${BASE}Competitions.ASP?cYear=${seasonYear}&cMonth=0&cType=0&cMode=0&isFinish=`;
-  const { swim, otherTypes } = parseCompetitionList(await get(listUrl));
-  if (swim.length === 0 && otherTypes === 0) throw new Error('לא נמצאו תחרויות בעמוד האיגוד (ייתכן שמבנה העמוד השתנה)');
+  const parsed = parseCompetitionList(await get(listUrl));
+  const { otherTypes } = parsed;
+  if (parsed.swim.length === 0 && otherTypes === 0) throw new Error('לא נמצאו תחרויות בעמוד האיגוד (ייתכן שמבנה העמוד השתנה)');
+
+  // תחרויות שמנהל/ת מחק/ה והסתיר/ה מהסנכרון: לא נוצרות מחדש
+  const ignoredIds = new Set(
+    (await prisma.isrIgnoredCompetition.findMany({ select: { isrCompId: true } })).map((x) => x.isrCompId),
+  );
+  const swim = parsed.swim.filter((c) => !ignoredIds.has(c.compId));
+  const ignored = parsed.swim.length - swim.length;
 
   // פרטים מכל עמוד תחרות (מקום, קובץ מידע, ימים) ותוכנית המשחים במערכת התוצאות אם יש
   let detailErrors = 0;
@@ -223,7 +232,7 @@ export async function syncIsrCompetitions(actorId: string | null = null, seasonY
   const seasonStart = new Date(Date.UTC(seasonYear - 1, 8, 1));
   const seasonEnd = new Date(Date.UTC(seasonYear, 8, 1));
   const missingFromIsr = await prisma.competition.count({
-    where: { isrCompId: { not: null, notIn: swim.map((c) => c.compId) }, date: { gte: seasonStart, lt: seasonEnd } },
+    where: { isrCompId: { not: null, notIn: parsed.swim.map((c) => c.compId) }, date: { gte: seasonStart, lt: seasonEnd } },
   });
 
   const summary: SyncSummary = {
@@ -237,6 +246,7 @@ export async function syncIsrCompetitions(actorId: string | null = null, seasonY
     skippedOtherTypes: otherTypes,
     sessionsUpdated,
     sessionsLocked,
+    ignored,
   };
   await audit(
     actorId,
@@ -245,6 +255,7 @@ export async function syncIsrCompetitions(actorId: string | null = null, seasonY
       (sessionsUpdated ? `, הצגות עודכנו ב-${sessionsUpdated} תחרויות` : '') +
       (sessionsLocked ? `, ${sessionsLocked} תחרויות עם שיבוצים: ההצגות לא שונו` : '') +
       (missingFromIsr ? `, ${missingFromIsr} כבר לא מופיעות באתר האיגוד` : '') +
+      (ignored ? `, ${ignored} מוסתרות` : '') +
       (detailErrors ? `, ${detailErrors} עמודי פרטים נכשלו` : ''),
   );
   return summary;
