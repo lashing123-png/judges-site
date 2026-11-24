@@ -5,7 +5,7 @@ import Form from './Form';
 import PoolMap from './PoolMap';
 import { saveLayout } from '@/actions/admin';
 import { ROLE_OPTIONS } from '@/lib/constants';
-import { laneTimers, validatePositions, type Position } from '@/lib/poolLayout';
+import { defaultPositions, laneTimers, validatePositions, type Position } from '@/lib/poolLayout';
 import { SortTh, matchesSearch, useTableSort } from './tableSort';
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -59,7 +59,21 @@ export default function LayoutForm({ initial }: { initial: { id?: string; name: 
         </div>
       </div>
       <label className="check"><input type="checkbox" name="isDefault" defaultChecked={initial.isDefault} /> תבנית ברירת מחדל (לתחרויות ללא תבנית מוגדרת)</label>
-      <div><button type="button" className="jud-btn-ghost sm" onClick={rebuild}>בנה מחדש עמדות מודדי זמנים לפי מספר המסלולים</button></div>
+      <div className="row" style={{ gap: 8 }}>
+        <button type="button" className="jud-btn-ghost sm" onClick={rebuild}>בנה מחדש עמדות מודדי זמנים לפי מספר המסלולים</button>
+        <button
+          type="button"
+          className="jud-btn-ghost sm"
+          onClick={() => {
+            if (window.confirm(`לאפס את כל העמדות והתפקידים לתקן של בריכת ${lanes} מסלולים? שינויים ידניים בעמדות יאבדו (אפשר עדיין לא לשמור).`)) {
+              setQ('');
+              setPositions(defaultPositions(lanes));
+            }
+          }}
+        >
+          איפוס עמדות ותפקידים לפי מספר המסלולים
+        </button>
+      </div>
 
       <div>
         <div className="row between" style={{ marginBottom: 6 }}>

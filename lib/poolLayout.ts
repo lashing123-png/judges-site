@@ -13,22 +13,33 @@ export function laneTimers(n: number): Position[] {
   return out;
 }
 
-// תבנית ברירת המחדל לבריכת 10 מסלולים, כולל המיקומים שאושרו בפרוטוטייפ
+// תבנית ברירת מחדל לפי מספר המסלולים (המיקומים אושרו בפרוטוטייפ של 10 מסלולים):
+// - בכל בריכה: מודד/ת זמנים בשני צדי כל מסלול, שופט זמן ראשי ודירוג, מציב/ה, שופט/ת פניות ראשי/ת ורזרבה
+// - 8 מסלולים ומעלה: 2 מזניקים, 2 שופטים ראשיים ו-4 שופטי סגנון (שניים בכל צד)
+// - עד 7 מסלולים: מזניק/ה אחד/ת, שופט/ת ראשי/ת אחד/ת ו-2 שופטי סגנון (אחד בכל צד)
 export function defaultPositions(n = 10): Position[] {
+  const big = n >= 8;
   return [
-    { id: 'starter-1', label: 'מזניק/ה (1)', defaultRole: 'מזניק/ה', x: 230, y: 640 },
-    { id: 'starter-2', label: 'מזניק/ה (2)', defaultRole: 'מזניק/ה', x: 280, y: 640 },
-    { id: 'referee-1', label: 'שופט/ת ראשי/ת (1)', defaultRole: 'שופט/ת ראשי/ת', x: 330, y: 640 },
-    { id: 'referee-2', label: 'שופט/ת ראשי/ת (2)', defaultRole: 'שופט/ת ראשי/ת', x: 380, y: 640 },
+    { id: 'starter-1', label: big ? 'מזניק/ה (1)' : 'מזניק/ה', defaultRole: 'מזניק/ה', x: 230, y: 640 },
+    ...(big ? [{ id: 'starter-2', label: 'מזניק/ה (2)', defaultRole: 'מזניק/ה', x: 280, y: 640 }] : []),
+    { id: 'referee-1', label: big ? 'שופט/ת ראשי/ת (1)' : 'שופט/ת ראשי/ת', defaultRole: 'שופט/ת ראשי/ת', x: big ? 330 : 280, y: 640 },
+    ...(big ? [{ id: 'referee-2', label: 'שופט/ת ראשי/ת (2)', defaultRole: 'שופט/ת ראשי/ת', x: 380, y: 640 }] : []),
     { id: 'chief-timer', label: 'שופט זמן ראשי ודירוג', defaultRole: 'שופט זמן ראשי ודירוג', x: 230, y: 700 },
     { id: 'reserve', label: 'רזרבה', defaultRole: 'רזרבה', x: 330, y: 700 },
     { id: 'placing', label: 'מציב/ה', defaultRole: 'הצבות', x: 110, y: 60 },
     { id: 'chief-turn', label: 'שופט/ת פניות ראשי/ת', defaultRole: 'שופט/ת פניות ראשי', x: 925, y: 60 },
     ...laneTimers(n),
-    { id: 'stroke-1', label: 'שופט/ת סגנון - צד עליון א׳', defaultRole: 'סגנון', x: 400, y: 55 },
-    { id: 'stroke-2', label: 'שופט/ת סגנון - צד עליון ב׳', defaultRole: 'סגנון', x: 680, y: 55 },
-    { id: 'stroke-3', label: 'שופט/ת סגנון - צד תחתון א׳', defaultRole: 'סגנון', x: 400, y: 595 },
-    { id: 'stroke-4', label: 'שופט/ת סגנון - צד תחתון ב׳', defaultRole: 'סגנון', x: 680, y: 595 },
+    ...(big
+      ? [
+          { id: 'stroke-1', label: 'שופט/ת סגנון - צד עליון א׳', defaultRole: 'סגנון', x: 400, y: 55 },
+          { id: 'stroke-2', label: 'שופט/ת סגנון - צד עליון ב׳', defaultRole: 'סגנון', x: 680, y: 55 },
+          { id: 'stroke-3', label: 'שופט/ת סגנון - צד תחתון א׳', defaultRole: 'סגנון', x: 400, y: 595 },
+          { id: 'stroke-4', label: 'שופט/ת סגנון - צד תחתון ב׳', defaultRole: 'סגנון', x: 680, y: 595 },
+        ]
+      : [
+          { id: 'stroke-1', label: 'שופט/ת סגנון - צד עליון', defaultRole: 'סגנון', x: 530, y: 55 },
+          { id: 'stroke-3', label: 'שופט/ת סגנון - צד תחתון', defaultRole: 'סגנון', x: 530, y: 595 },
+        ]),
   ];
 }
 
