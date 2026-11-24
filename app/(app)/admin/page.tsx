@@ -2,13 +2,19 @@ import { prisma } from '@/lib/prisma';
 import { requireAdminPage } from '@/lib/authz';
 import Form from '@/components/Form';
 import ImportJudgesForm from '@/components/ImportJudgesForm';
+import ImportHistoryForm from '@/components/ImportHistoryForm';
 import JudgesTable from '@/components/JudgesTable';
 import { approveUser, createUser, rejectUser } from '@/actions/admin';
-import { fullName } from '@/lib/utils';
+import { fullName, sortByName } from '@/lib/utils';
 
 export default async function AdminUsers() {
   const me = await requireAdminPage();
-  const users = await prisma.user.findMany({ orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }] });
+  const [users, historyRows, historyLinked] = await Promise.all([
+    prisma.user.findMany().then(sortByName),
+    prisma.judgingHistory.count(),
+    prisma.judgingHistory.count({ where: { judgeId: { not: null } } }),
+  ]);
+  const historyCounts = { rows: historyRows, linked: historyLinked };
   const pending = users.filter((u) => u.status === 'PENDING');
   const others = users.filter((u) => u.status !== 'PENDING');
 
@@ -60,6 +66,14 @@ export default async function AdminUsers() {
           תעודת זהות, תאריך לידה וכתובת אינם מיובאים.
         </p>
         <ImportJudgesForm />
+      </div>
+
+      <div className="card">
+        <h3 className="jud-heading h3" style={{ marginBottom: 10 }}>ייבוא היסטוריית שיפוט</h3>
+        <p className="small muted" style={{ marginBottom: 12 }}>
+          היסטוריית השיבוצים מלפני האתר (מגיליון &quot;שופטי שחייה - תחרויות&quot;). מוצגת בכרטיס כל שופט/ת, נספרת בדוח הכללי, ומשמשת להמלצות בשיבוץ.
+        </p>
+        <ImportHistoryForm current={historyCounts} />
       </div>
 
       <div className="card">

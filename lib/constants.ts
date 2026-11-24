@@ -26,6 +26,47 @@ export const EXPERIENCE_ROLES = [
   'מזניק בינ"ל',
 ];
 
+// תפקידים בגיליון ההיסטוריה -> תפקידי האתר
+const HISTORY_ROLE_MAP: Record<string, string> = {
+  'מודד זמנים': 'מודד/ת זמנים',
+  'מודד זמן': 'מודד/ת זמנים',
+  'פניות': 'פניות',
+  'שופט פניות': 'פניות',
+  'סגנון': 'סגנון',
+  'שופט סגנון': 'סגנון',
+  'מציב': 'הצבות',
+  'הצבות': 'הצבות',
+  'שופט ראשי': 'שופט/ת ראשי/ת',
+  'מזניק': 'מזניק/ה',
+  'שופט ראשי ומזניק': 'שופט/ת ראשי/ת ומזניק/ה',
+  'שופט פניות ראשי': 'שופט/ת פניות ראשי',
+  'שופט זמן ראשי ודירוג': 'שופט זמן ראשי ודירוג',
+  'רזרבה': 'רזרבה',
+};
+export const normalizeRole = (s: string) => {
+  const t = s.trim();
+  return ROLE_OPTIONS.includes(t) ? t : HISTORY_ROLE_MAP[t] ?? t;
+};
+
+// אילו הסמכות (מכרטיס השופט/ת) מתאימות לכל תפקיד בעמדה. לתפקיד משולב צריך הסמכה מכל קבוצה.
+const HEAD = ['שופט ראשי ליגה', 'שופט ראשי מחוזי', 'שופט ראשי ארצי', 'שופט ראשי בינ"ל'];
+const STARTER = ['מזניק מחוזי', 'מזניק ארצי', 'מזניק בינ"ל'];
+const ROLE_CERTS: Record<string, string[][]> = {
+  'שופט/ת ראשי/ת': [HEAD],
+  'מזניק/ה': [STARTER],
+  'שופט/ת ראשי/ת ומזניק/ה': [HEAD, STARTER],
+  'סגנון': [['שופט סגנון']],
+  'הצבות': [['מציב']],
+  'מודד/ת זמנים': [['מודד זמן']],
+  'פניות': [['שופט פניות']],
+  'שופט/ת פניות ראשי': [['שופט פניות']],
+  'שופט זמן ראשי ודירוג': [['מודד זמן']],
+};
+export const isCertifiedFor = (role: string, certs: string[]) => {
+  const groups = ROLE_CERTS[role];
+  return !!groups?.length && groups.every((g) => g.some((c) => certs.includes(c)));
+};
+
 // נשמר בעמודת roleExperience כטקסט, תפקיד בכל שורה.
 export const parseExperienceRoles = (s: string) => s.split('\n').map((x) => x.trim()).filter(Boolean);
 export const serializeExperienceRoles = (roles: string[]) =>

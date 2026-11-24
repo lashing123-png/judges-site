@@ -89,7 +89,7 @@ function parseDate(v: unknown): { year: number; month: number } | null {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // CSV: UTF-8 (עם או בלי BOM), ואם הבייטים אינם UTF-8 תקין, Windows-1255 (ברירת המחדל של Excel בעברית)
-function decodeCsv(buf: Buffer): string {
+export function decodeCsv(buf: Buffer): string {
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/^﻿/, '');
   } catch {

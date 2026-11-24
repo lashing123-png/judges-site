@@ -32,7 +32,7 @@ export default function JudgesTable({ users, meId }: { users: JudgeRow[]; meId: 
   const shown = sort.sort(
     users.filter((u) => matchesSearch(q, [u.firstName, u.lastName, u.email, u.club, u.phone])),
     (u, k) =>
-      k === 'name' ? `${u.lastName} ${u.firstName}`
+      k === 'name' ? `${u.firstName} ${u.lastName}`
       : k === 'email' ? u.email
       : k === 'club' ? u.club || '￿' // בלי אגודה בסוף
       : k === 'status' ? STATUS[u.status].label

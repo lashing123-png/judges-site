@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser, managedCompetitionIds } from '@/lib/authz';
-import { iso } from '@/lib/utils';
+import DateText from '@/components/DateText';
 
 export default async function HeadIndex() {
   const user = await requireUser();
@@ -25,7 +25,7 @@ export default async function HeadIndex() {
         {comps.map((c) => (
           <Link key={c.id} href={`/head/${c.id}`} className="person">
             <span style={{ fontWeight: 600 }}>{c.name}</span>
-            <span className="jud-mono muted">{iso(c.date)}</span>
+            <DateText className="jud-mono muted" date={c.date} end={c.endDate} />
           </Link>
         ))}
       </div>

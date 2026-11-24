@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Form from './Form';
 import { saveCompetition } from '@/actions/admin';
 import { newSessionId, type Session } from '@/lib/utils';
+import { matchesSearch } from './tableSort';
 
 type Judge = { id: string; name: string };
 type Layout = { id: string; name: string; laneCount: number };
@@ -22,6 +23,15 @@ type Initial = {
 
 export default function CompetitionForm({ initial, judges, layouts }: { initial: Initial; judges: Judge[]; layouts: Layout[] }) {
   const [sessions, setSessions] = useState<Session[]>(initial.sessions.length ? initial.sessions : [{ id: newSessionId(), label: '', datetime: '' }]);
+  const [q, setQ] = useState('');
+  const [heads, setHeads] = useState(() => new Set(initial.headJudgeIds));
+  const toggleHead = (id: string, on: boolean) =>
+    setHeads((s) => {
+      const n = new Set(s);
+      if (on) n.add(id);
+      else n.delete(id);
+      return n;
+    });
   const upd = (i: number, patch: Partial<Session>) => setSessions((a) => a.map((s, j) => (j === i ? { ...s, ...patch } : s)));
 
   return (
@@ -61,13 +71,27 @@ export default function CompetitionForm({ initial, judges, layouts }: { initial:
       </div>
       <div>
         <h4 className="jud-heading h4" style={{ marginBottom: 8 }}>שופטים ראשיים בתחרות זו</h4>
-        <div className="row" style={{ gap: 8 }}>
+        <div className="small" style={{ marginBottom: 8 }}>
+          {heads.size ? <>נבחרו: {judges.filter((j) => heads.has(j.id)).map((j) => j.name).join(', ')}</> : <span className="muted">לא נבחרו שופטים ראשיים</span>}
+        </div>
+        <input
+          className="jud-input"
+          type="search"
+          style={{ marginBottom: 8 }}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="חיפוש שופט/ת לפי שם"
+          aria-label="חיפוש שופט/ת ראשי/ת"
+        />
+        <div className="row" style={{ gap: 8, maxHeight: 260, overflowY: 'auto' }}>
           {judges.map((j) => (
-            <label key={j.id} className="opt">
-              <input type="checkbox" name="headJudges" value={j.id} defaultChecked={initial.headJudgeIds.includes(j.id)} /> {j.name}
+            // מסננים בהסתרה ולא בהסרה, כדי שהבחירות שמוסתרות עדיין יישלחו בטופס
+            <label key={j.id} className="opt" style={matchesSearch(q, [j.name]) ? undefined : { display: 'none' }}>
+              <input type="checkbox" name="headJudges" value={j.id} checked={heads.has(j.id)} onChange={(e) => toggleHead(j.id, e.target.checked)} /> {j.name}
             </label>
           ))}
           {judges.length === 0 && <span className="muted small">אין שופטים פעילים</span>}
+          {judges.length > 0 && q.trim() && !judges.some((j) => matchesSearch(q, [j.name])) && <span className="muted small">לא נמצאו שופטים</span>}
         </div>
       </div>
     </Form>

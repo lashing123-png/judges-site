@@ -53,10 +53,17 @@ export function parseIsrDate(s: string): Date | null {
   return new Date(Date.UTC(year, month - 1, day, 12));
 }
 
+// יום אחרון בטווח ("30-31.7.2027" -> 31.7.2027). תאריך יחיד -> null
+export function parseIsrEndDate(s: string): Date | null {
+  if (!s.includes('-')) return null;
+  const end = s.split('-', 2)[1].trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  return end ? new Date(Date.UTC(Number(end[3]), Number(end[2]) - 1, Number(end[1]), 12)) : null;
+}
+
 // שם בלי סיומת התאריך שהאיגוד מוסיף ("... - 09/10/2026")
 const cleanName = (name: string) => name.replace(/\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/, '').trim();
 
-export type IsrCompetition = { compId: number; name: string; date: Date; dateText: string };
+export type IsrCompetition = { compId: number; name: string; date: Date; endDate: Date | null; dateText: string };
 
 export function parseCompetitionList(html: string): { swim: IsrCompetition[]; otherTypes: number } {
   const swim: IsrCompetition[] = [];
@@ -71,7 +78,7 @@ export function parseCompetitionList(html: string): { swim: IsrCompetition[]; ot
     const link = row.match(/<td class="rr c-name">\s*<a[^>]*href="comp\.asp\?compID=(\d+)"[^>]*>([\s\S]*?)<\/a>/);
     const date = parseIsrDate(dateText);
     if (!link || !date) continue;
-    swim.push({ compId: Number(link[1]), name: cleanName(decode(link[2].replace(/<[^>]+>/g, ''))), date, dateText });
+    swim.push({ compId: Number(link[1]), name: cleanName(decode(link[2].replace(/<[^>]+>/g, ''))), date, endDate: parseIsrEndDate(dateText), dateText });
   }
   return { swim, otherTypes };
 }
@@ -188,7 +195,7 @@ export async function syncIsrCompetitions(actorId: string | null = null, seasonY
     const fileUrl = d ? d.fileUrl || d.logligStatute : '';
     if (!cur) {
       await prisma.competition.create({
-        data: { isrCompId: c.compId, name: c.name, date: c.date, location: d?.location ?? '', statuteUrl: fileUrl, sessions: d?.sessions ?? [] },
+        data: { isrCompId: c.compId, name: c.name, date: c.date, endDate: c.endDate, location: d?.location ?? '', statuteUrl: fileUrl, sessions: d?.sessions ?? [] },
       });
       created++;
       if (d?.sessions.length) sessionsUpdated++;
@@ -198,6 +205,7 @@ export async function syncIsrCompetitions(actorId: string | null = null, seasonY
     const data: Record<string, unknown> = {};
     if (cur.name !== c.name) data.name = c.name;
     if (cur.date.getTime() !== c.date.getTime()) data.date = c.date;
+    if ((cur.endDate?.getTime() ?? null) !== (c.endDate?.getTime() ?? null)) data.endDate = c.endDate;
     if (d && d.location && cur.location !== d.location) data.location = d.location;
     if (fileUrl && cur.statuteUrl !== fileUrl) data.statuteUrl = fileUrl;
 

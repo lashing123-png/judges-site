@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser, canManage } from '@/lib/authz';
-import { fullName, regSessionsLabel, sessionsOf } from '@/lib/utils';
+import { fullName, regSessionsLabel, sessionsOf, sortByJudgeName } from '@/lib/utils';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const params = await ctx.params;
@@ -15,7 +15,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const sessions = sessionsOf(comp.sessions);
   const regs = await prisma.registration.findMany({ where: { competitionId: comp.id }, include: { judge: true } });
 
-  const rows = regs.map((r) => ({
+  const rows = sortByJudgeName(regs).map((r) => ({
     'שם השופט': fullName(r.judge),
     'טלפון': r.judge.phone,
     'הצגות': regSessionsLabel(r.sessions, sessions),

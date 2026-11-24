@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/authz';
 import Form from '@/components/Form';
 import { cancelRegistration, saveRegistration } from '@/actions/competition';
-import { competitionPassed, fullName, iso, regCovers, regSessionsLabel, sessionsOf } from '@/lib/utils';
+import { competitionPassed, fullName, lodgingOffered, regCovers, regSessionsLabel, sessionsOf, sortByJudgeName } from '@/lib/utils';
+import DateText from '@/components/DateText';
 
 export default async function CompetitionPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -26,10 +27,16 @@ export default async function CompetitionPage(props: { params: Promise<{ id: str
         {comp.number && <div className="jud-mono" style={{ color: 'var(--accent)', fontSize: 13, marginBottom: 4 }}>תחרות מס׳ {comp.number}</div>}
         <h2 className="jud-heading" style={{ fontSize: 22, marginBottom: 10 }}>{comp.name}</h2>
         <div className="row muted" style={{ gap: 18, fontSize: 14 }}>
-          <span className="jud-mono">{iso(comp.date)}</span>
+          <DateText date={comp.date} end={comp.endDate} />
           <span>{comp.location}</span>
           {comp.statuteUrl && <a href={comp.statuteUrl} target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>לתקנון התחרות ↗</a>}
         </div>
+        {manage && (
+          <div className="row" style={{ marginTop: 14, gap: 8 }}>
+            <Link href={`/head/${comp.id}`} className="jud-btn-ghost sm" style={{ textDecoration: 'none' }}>ניהול שופט ראשי ›</Link>
+            <a href={`/api/export/head-report/${comp.id}`} className="jud-btn-ghost sm" style={{ textDecoration: 'none' }}>הורדת דוח שופט ראשי (Excel)</a>
+          </div>
+        )}
       </div>
 
       {(comp.announcement || comp.headJudges.length > 0) && (
@@ -40,7 +47,7 @@ export default async function CompetitionPage(props: { params: Promise<{ id: str
             <>
               <h4 className="jud-heading h4" style={{ margin: '14px 0 8px' }}>שופטים ראשיים בתחרות</h4>
               <div className="row" style={{ gap: 18, fontSize: 13.5 }}>
-                {comp.headJudges.map((h) => (
+                {sortByJudgeName(comp.headJudges).map((h) => (
                   <span key={h.judgeId}>
                     {fullName(h.judge)}
                     {/* מספרי טלפון נשלחים ללקוח רק למנהל/ת ולשופט/ת הראשי/ת של התחרות הזו */}
@@ -87,7 +94,9 @@ export default async function CompetitionPage(props: { params: Promise<{ id: str
                   </div>
                 </div>
               )}
-              <label className="check"><input type="checkbox" name="lodging" defaultChecked={reg?.lodging} /> יש צורך בלינה</label>
+              {lodgingOffered(comp) && (
+                <label className="check"><input type="checkbox" name="lodging" defaultChecked={reg?.lodging} /> יש צורך בלינה</label>
+              )}
             </Form>
             {reg && (
               <div style={{ marginTop: 10 }}>

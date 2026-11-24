@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import Form from './Form';
 import { updateProfile, changePassword } from '@/actions/profile';
-import { fullName, iso, seasonOf, sessionsOf } from '@/lib/utils';
+import { fullName, seasonOf, sessionsOf } from '@/lib/utils';
+import DateText from './DateText';
 import { EXPERIENCE_ROLES, parseExperienceRoles } from '@/lib/constants';
 import type { User } from '@prisma/client';
 
@@ -13,21 +14,42 @@ export default async function ProfileView({ target, viewer, basePath, sp }: { ta
   const targetRoles = parseExperienceRoles(target.roleExperience);
   const legacyRoles = targetRoles.filter((r) => !EXPERIENCE_ROLES.includes(r));
 
-  const rows = (
-    await prisma.assignment.findMany({ where: { judgeId: target.id }, include: { competition: true } })
-  )
-    .map((a) => {
-      const s = sessionsOf(a.competition.sessions).find((x) => x.id === a.sessionId);
-      return { a, comp: a.competition, session: s?.label ?? '', season: seasonOf(a.competition.date) };
-    })
-    .sort((x, y) => y.comp.date.getTime() - x.comp.date.getTime());
+  // שיבוצים באתר + היסטוריית שיפוט מיובאת (מלפני האתר)
+  const [assigns, history] = await Promise.all([
+    prisma.assignment.findMany({ where: { judgeId: target.id }, include: { competition: true } }),
+    prisma.judgingHistory.findMany({ where: { judgeId: target.id } }),
+  ]);
+  const rows = [
+    ...assigns.map((a) => ({
+      key: a.id,
+      compName: a.competition.name,
+      date: a.competition.date as Date | null,
+      location: a.competition.location,
+      session: sessionsOf(a.competition.sessions).find((x) => x.id === a.sessionId)?.label ?? '',
+      role: a.role,
+      label: a.positionLabel || a.role,
+      season: seasonOf(a.competition.date),
+      imported: false,
+    })),
+    ...history.map((h) => ({
+      key: h.id,
+      compName: h.competition,
+      date: h.date,
+      location: h.location,
+      session: '',
+      role: h.role,
+      label: h.role,
+      season: h.date ? seasonOf(h.date) : h.season ? `${h.season - 1}/${h.season}` : '',
+      imported: true,
+    })),
+  ].sort((x, y) => (y.date?.getTime() ?? 0) - (x.date?.getTime() ?? 0));
 
-  const seasons = Array.from(new Set(rows.map((r) => r.season))).sort().reverse();
-  const roles = Array.from(new Set(rows.map((r) => r.a.role)));
+  const seasons = Array.from(new Set(rows.map((r) => r.season).filter(Boolean))).sort().reverse();
+  const roles = Array.from(new Set(rows.map((r) => r.role)));
   const q = (sp.name ?? '').toLowerCase();
   const l = (sp.loc ?? '').toLowerCase();
   const shown = rows.filter(
-    (r) => (!sp.season || r.season === sp.season) && (!q || r.comp.name.toLowerCase().includes(q)) && (!l || r.comp.location.toLowerCase().includes(l)) && (!sp.role || r.a.role === sp.role),
+    (r) => (!sp.season || r.season === sp.season) && (!q || r.compName.toLowerCase().includes(q)) && (!l || r.location.toLowerCase().includes(l)) && (!sp.role || r.role === sp.role),
   );
 
   return (
@@ -110,13 +132,13 @@ export default async function ProfileView({ target, viewer, basePath, sp }: { ta
               <thead><tr><th>עונה</th><th>תחרות</th><th>תאריך</th><th>מיקום</th><th>הצגה</th><th>תפקיד</th></tr></thead>
               <tbody>
                 {shown.map((r) => (
-                  <tr key={r.a.id}>
+                  <tr key={r.key}>
                     <td className="jud-mono muted">{r.season}</td>
-                    <td>{r.comp.name}</td>
-                    <td className="jud-mono">{iso(r.comp.date)}</td>
-                    <td>{r.comp.location}</td>
-                    <td className="small">{r.session || '—'}</td>
-                    <td><span className="jud-chip chip-accent">{r.a.positionLabel || r.a.role}</span></td>
+                    <td>{r.compName}</td>
+                    <td>{r.date ? <DateText date={r.date} /> : '—'}</td>
+                    <td>{r.location || '—'}</td>
+                    <td className="small">{r.session || (r.imported ? 'היסטוריה' : '—')}</td>
+                    <td><span className="jud-chip chip-accent">{r.label}</span></td>
                   </tr>
                 ))}
               </tbody>

@@ -2,17 +2,18 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requireAdminPage } from '@/lib/authz';
 import Form from '@/components/Form';
+import DateText from '@/components/DateText';
 import CompetitionForm from '@/components/CompetitionForm';
 import { deleteCompetition, unhideIsrCompetition } from '@/actions/admin';
 import { syncIsrNow } from '@/actions/isrSync';
-import { fullName, iso, sessionsOf } from '@/lib/utils';
+import { fullName, iso, sessionsOf, sortByJudgeName, sortByName } from '@/lib/utils';
 
 export default async function AdminCompetitions(props: { searchParams: Promise<{ edit?: string }> }) {
   const searchParams = await props.searchParams;
   await requireAdminPage();
   const [comps, judges, layouts, lastSync, hidden] = await Promise.all([
     prisma.competition.findMany({ orderBy: { date: 'asc' }, include: { poolLayout: true, headJudges: { include: { judge: true } } } }),
-    prisma.user.findMany({ where: { status: 'ACTIVE' }, orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }] }),
+    prisma.user.findMany({ where: { status: 'ACTIVE' } }).then(sortByName),
     prisma.poolLayout.findMany({ orderBy: { name: 'asc' } }),
     prisma.auditLog.findFirst({ where: { action: 'סנכרון תחרויות מאתר האיגוד' }, orderBy: { createdAt: 'desc' } }),
     prisma.isrIgnoredCompetition.findMany({ orderBy: { date: 'asc' } }),
@@ -61,10 +62,10 @@ export default async function AdminCompetitions(props: { searchParams: Promise<{
                 <tr key={c.id}>
                   <td className="jud-mono muted">{c.number}</td>
                   <td style={{ fontWeight: 600 }}>{c.name}</td>
-                  <td className="jud-mono">{iso(c.date)}</td>
+                  <td><DateText date={c.date} end={c.endDate} /></td>
                   <td>{sessionsOf(c.sessions).length}</td>
                   <td className="small">{c.poolLayout?.name ?? 'ברירת מחדל'}</td>
-                  <td className="small">{c.headJudges.map((h) => fullName(h.judge)).join(', ') || '—'}</td>
+                  <td className="small">{sortByJudgeName(c.headJudges).map((h) => fullName(h.judge)).join(', ') || '—'}</td>
                   <td>
                     <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
                       <Link href={`/admin/competitions?edit=${c.id}`} className="jud-btn-ghost sm" style={{ textDecoration: 'none' }}>עריכה</Link>
@@ -102,7 +103,7 @@ export default async function AdminCompetitions(props: { searchParams: Promise<{
                 {hidden.map((h) => (
                   <tr key={h.isrCompId}>
                     <td style={{ fontWeight: 600 }}>{h.name}</td>
-                    <td className="jud-mono">{iso(h.date)}</td>
+                    <td><DateText date={h.date} /></td>
                     <td className="small"><a href={`https://isr.org.il/comp.asp?compID=${h.isrCompId}`} target="_blank" rel="noreferrer">{h.isrCompId}</a></td>
                     <td className="small jud-mono">{h.createdAt.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td>
                     <td>

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { assertUser } from '@/lib/authz';
 import { run, UserError, type ActionResult } from '@/lib/action';
-import { competitionPassed, sessionsOf } from '@/lib/utils';
+import { competitionPassed, lodgingOffered, sessionsOf } from '@/lib/utils';
 
 function refresh(competitionId: string) {
   revalidatePath(`/competitions/${competitionId}`);
@@ -25,7 +25,7 @@ export async function saveRegistration(_prev: ActionResult, fd: FormData): Promi
     const sessions = fd.getAll('sessions').map(String).filter((s) => valid.includes(s));
     // תחרות בלי הצגות מוגדרות: רישום לכל התחרות (רשימת הצגות ריקה)
     if (valid.length && !sessions.length) throw new UserError('יש לבחור לפחות הצגה אחת');
-    const lodging = fd.get('lodging') === 'on';
+    const lodging = lodgingOffered(comp) && fd.get('lodging') === 'on';
 
     await prisma.registration.upsert({
       where: { competitionId_judgeId: { competitionId, judgeId: me.id } },

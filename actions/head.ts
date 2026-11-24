@@ -68,6 +68,18 @@ export async function deleteRegistration(_p: ActionResult, fd: FormData): Promis
   });
 }
 
+// ניקוי כל השיבוצים במפה של הצגה אחת (ההרשמות והנוכחות לא משתנות)
+export async function clearSessionAssignments(_p: ActionResult, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    const competitionId = str(fd, 'competitionId');
+    const sessionId = str(fd, 'sessionId');
+    await assertManage(competitionId);
+    const { count } = await prisma.assignment.deleteMany({ where: { competitionId, sessionId } });
+    refresh(competitionId);
+    return count ? `${count} שיבוצים נוקו מההצגה` : 'אין שיבוצים בהצגה זו';
+  });
+}
+
 export async function addNote(_p: ActionResult, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     const competitionId = str(fd, 'competitionId');

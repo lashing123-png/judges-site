@@ -3,10 +3,14 @@ import { notFound, redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser, canManage } from '@/lib/authz';
 import { layoutForCompetition } from '@/lib/layouts';
-import { fullName, fmtDateTime, iso, regCovers, sessionsOf } from '@/lib/utils';
+import { compareNames, fullName, fmtDateTime, iso, regCovers, sessionsOf, sortByName } from '@/lib/utils';
+import { parseExperienceRoles } from '@/lib/constants';
 import Form from '@/components/Form';
-import SessionMap from '@/components/SessionMap';
-import { addNote, addWalkIn, deleteRegistration, toggleNoShow } from '@/actions/head';
+import DateText from '@/components/DateText';
+import SessionMap, { type JudgeStats } from '@/components/SessionMap';
+import JudgeSelect from '@/components/JudgeSelect';
+import TableSearch from '@/components/TableSearch';
+import { addNote, addWalkIn, clearSessionAssignments, deleteRegistration, toggleNoShow } from '@/actions/head';
 
 export default async function HeadCompetitionPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -23,21 +27,45 @@ export default async function HeadCompetitionPage(props: { params: Promise<{ id:
     prisma.registration.findMany({ where: { competitionId: comp.id }, include: { judge: true } }),
     prisma.assignment.findMany({ where: { competitionId: comp.id }, include: { judge: true } }),
     prisma.note.findMany({ where: { competitionId: comp.id }, include: { author: true }, orderBy: { createdAt: 'desc' } }),
-    prisma.user.findMany({ where: { status: 'ACTIVE' }, orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }] }),
+    prisma.user.findMany({ where: { status: 'ACTIVE' } }).then(sortByName),
   ]);
-  const byName = (a: { judge: { firstName: string; lastName: string } }, b: { judge: { firstName: string; lastName: string } }) =>
-    fullName(a.judge).localeCompare(fullName(b.judge), 'he');
+  const regIds = new Set(regs.map((r) => r.judgeId));
+
+  // נתונים להמלצות שיבוץ: הסמכות מכרטיס השופט/ת, ומספר הפעמים ותאריך אחרון בכל תפקיד (היסטוריה + שיבוצים באתר)
+  const judgeIds = [...regIds];
+  const [histGroups, pastAssigns] = judgeIds.length
+    ? await Promise.all([
+        prisma.judgingHistory.groupBy({ by: ['judgeId', 'role'], where: { judgeId: { in: judgeIds } }, _count: { _all: true }, _max: { date: true } }),
+        prisma.assignment.findMany({
+          where: { judgeId: { in: judgeIds }, NOT: { competitionId: comp.id } },
+          select: { judgeId: true, role: true, competition: { select: { date: true } } },
+        }),
+      ])
+    : [[], []];
+  const stats: Record<string, JudgeStats> = {};
+  for (const r of regs) stats[r.judgeId] = { certs: parseExperienceRoles(r.judge.roleExperience), roles: {} };
+  const bump = (judgeId: string | null, role: string, n: number, date: Date | null) => {
+    const s = judgeId ? stats[judgeId] : undefined;
+    if (!s) return;
+    const cur = (s.roles[role] ??= { count: 0, last: '' });
+    cur.count += n;
+    const d = date ? iso(date) : '';
+    if (d > cur.last) cur.last = d;
+  };
+  for (const g of histGroups) bump(g.judgeId, g.role, g._count._all, g._max.date);
+  for (const a of pastAssigns) bump(a.judgeId, a.role, 1, a.competition.date);
+  const byName = (a: (typeof regs)[number], b: (typeof regs)[number]) => compareNames(a.judge, b.judge);
 
   // טבלת נוכחות: לכל הצגה (עם עמודת שיבוץ במפה), או לכל התחרות כשאין הצגות (sessAssigns = null)
   const attendance = (list: typeof regs, sessAssigns: typeof assigns | null) => (
-    <div className="tblwrap">
+    <div className="tblwrap" data-attendance>
       <table className="jud-table">
         <thead><tr><th>שם</th><th>טלפון</th><th>לינה</th>{sessAssigns && <th>שיבוץ במפה</th>}<th>נוכחות</th></tr></thead>
         <tbody>
           {list.map((r) => {
             const a = sessAssigns?.find((x) => x.judgeId === r.judgeId);
             return (
-              <tr key={r.id} style={{ opacity: r.noShow ? 0.5 : 1 }}>
+              <tr key={r.id} data-search={`${fullName(r.judge)} ${r.judge.club}`} style={{ opacity: r.noShow ? 0.5 : 1 }}>
                 <td>
                   {fullName(r.judge)} {r.walkIn && <span className="jud-chip chip-accent">הצטרפ/ה במקום</span>} {r.noShow && <span className="jud-chip chip-lock">לא הגיע/ה</span>}
                 </td>
@@ -70,9 +98,12 @@ export default async function HeadCompetitionPage(props: { params: Promise<{ id:
         <div className="row between">
           <div>
             <h2 className="jud-heading h2">דוח שופט ראשי: {comp.name}</h2>
-            <div className="jud-mono muted small">{iso(comp.date)} · {comp.location}</div>
+            <div className="muted small"><DateText date={comp.date} end={comp.endDate} /> · {comp.location}</div>
           </div>
-          <Link href="/head" className="jud-btn-ghost">החלפת תחרות</Link>
+          <div className="row" style={{ gap: 8 }}>
+            <a href={`/api/export/head-report/${comp.id}`} className="jud-btn-ghost" style={{ textDecoration: 'none' }}>הורדת הדוח (Excel)</a>
+            <Link href="/head" className="jud-btn-ghost">החלפת תחרות</Link>
+          </div>
         </div>
       </div>
 
@@ -101,10 +132,7 @@ export default async function HeadCompetitionPage(props: { params: Promise<{ id:
           <input type="hidden" name="competitionId" value={comp.id} />
           <div style={{ minWidth: 220 }}>
             <label className="lbl">שופט/ת</label>
-            <select className="jud-input" name="judgeId" required defaultValue="">
-              <option value="">— בחירה —</option>
-              {candidates.map((j) => (<option key={j.id} value={j.id}>{fullName(j)}</option>))}
-            </select>
+            <JudgeSelect name="judgeId" required judges={candidates.map((j) => ({ id: j.id, name: fullName(j), extra: j.club, note: regIds.has(j.id) ? ' (רשום/ה)' : '' }))} />
           </div>
           {sessions.length > 0 ? (
             <div>
@@ -120,6 +148,13 @@ export default async function HeadCompetitionPage(props: { params: Promise<{ id:
           )}
         </Form>
       </div>
+
+      {regs.length > 0 && (
+        <div className="card">
+          <h3 className="jud-heading h3" style={{ marginBottom: 8 }}>חיפוש שופט/ת בטבלאות הנוכחות</h3>
+          <TableSearch scope="[data-attendance]" />
+        </div>
+      )}
 
       {sessions.length === 0 && (
         <div className="card">
@@ -138,7 +173,7 @@ export default async function HeadCompetitionPage(props: { params: Promise<{ id:
         sessAssigns.forEach((a) => {
           assigned[a.positionId] = { initials: `${a.judge.firstName[0] ?? '?'}${a.judge.lastName[0] ?? '?'}`, name: fullName(a.judge), judgeId: a.judgeId, role: a.role };
         });
-        const present = inSession.filter((r) => !r.noShow).map((r) => ({ id: r.judgeId, name: fullName(r.judge) }));
+        const present = inSession.filter((r) => !r.noShow).map((r) => ({ id: r.judgeId, name: fullName(r.judge), club: r.judge.club }));
         return (
           <div key={s.id} className="card">
             <h3 className="jud-heading h3" style={{ marginBottom: 12 }}>
@@ -146,9 +181,23 @@ export default async function HeadCompetitionPage(props: { params: Promise<{ id:
               {s.label} {s.datetime && !s.id.startsWith('isr-') && <span className="small muted jud-mono" style={{ fontWeight: 400 }}>{fmtDateTime(s.datetime)}</span>}
             </h3>
             {layout ? (
-              <SessionMap competitionId={comp.id} sessionId={s.id} title={s.label} positions={layout.positions} laneCount={layout.laneCount} assigned={assigned} present={present} />
+              <SessionMap competitionId={comp.id} sessionId={s.id} title={s.label} positions={layout.positions} laneCount={layout.laneCount} assigned={assigned} present={present} stats={stats} />
             ) : (
               <div className="notice lock">אין תבנית מפת בריכה מוגדרת. יש לפנות למנהל/ת המערכת.</div>
+            )}
+            {sessAssigns.length > 0 && (
+              <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
+                <Form
+                  action={clearSessionAssignments}
+                  submit={`ניקוי שיבוצים (${sessAssigns.length})`}
+                  submitClass="jud-btn-ghost sm danger"
+                  confirm={`לנקות את כל ${sessAssigns.length} השיבוצים במפה של "${s.label}"? ההרשמות והנוכחות לא ישתנו.`}
+                  inline
+                >
+                  <input type="hidden" name="competitionId" value={comp.id} />
+                  <input type="hidden" name="sessionId" value={s.id} />
+                </Form>
+              </div>
             )}
             <h4 className="jud-heading h4" style={{ margin: '18px 0 10px' }}>נוכחות בהצגה זו</h4>
             {inSession.length === 0 ? <div className="muted">אין שופטים רשומים להצגה זו.</div> : attendance(inSession, sessAssigns)}

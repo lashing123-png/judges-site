@@ -35,6 +35,7 @@ model User {
   registrations Registration[]
   assignments   Assignment[]
   notes         Note[]
+  history       JudgingHistory[]
 }
 
 model PoolLayout {
@@ -52,6 +53,7 @@ model Competition {
   number       String   @default("")
   name         String
   date         DateTime
+  endDate      DateTime? // יום אחרון לתחרות של כמה ימים (מטווח התאריכים באתר האיגוד)
   location     String   @default("")
   statuteUrl   String   @default("")
   announcement String   @default("")
@@ -122,6 +124,26 @@ model Note {
 
   competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+// היסטוריית שיפוט מלפני האתר (גיליון "שופטי שחייה - תחרויות"): שורה לכל שופט/ת בתפקיד בתחרות.
+// judgeId מקושר כשהשם תואם לשופט/ת באתר; אחרת נשמר רק השם.
+model JudgingHistory {
+  id          String    @id @default(cuid())
+  season      Int?
+  competition String
+  date        DateTime?
+  location    String    @default("")
+  ages        String    @default("")
+  level       String    @default("") // אזורי / ארצי
+  judgeName   String
+  judgeId     String?
+  role        String // מנורמל לרשימת התפקידים באתר (ROLE_OPTIONS)
+  createdAt   DateTime  @default(now())
+
+  judge User? @relation(fields: [judgeId], references: [id], onDelete: SetNull)
+
+  @@index([judgeId])
 }
 
 // תחרויות מאתר האיגוד שמנהל/ת מחק/ה: הסנכרון היומי לא יוצר אותן מחדש (עד שמחזירים אותן)

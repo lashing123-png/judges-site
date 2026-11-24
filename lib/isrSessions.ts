@@ -2,7 +2,7 @@ import type { Session } from './utils';
 
 // הצגות לתחרויות מאתר האיגוד:
 // 1. אם עמוד התחרות מקושר למערכת התוצאות (loglig) ויש בה שעות התחלה: הצגה לכל שעת התחלה (בוקר/ערב לכל יום)
-// 2. אחרת, תחרות של כמה ימים: הצגה לכל יום, לפי לשוניות הימים בעמוד האיגוד
+// 2. אחרת, תחרות של כמה ימים: הצגת בוקר והצגת ערב לכל יום, לפי לשוניות הימים בעמוד האיגוד
 // 3. אחרת (תחרות של יום אחד): בלי הצגות, הרישום הוא לכל התחרות
 // מזהי ההצגות נגזרים מהתאריך/השעה (isr-YYYYMMDD או isr-YYYYMMDD-HHMM) כדי שיישארו יציבים בין סנכרונים.
 
@@ -53,7 +53,16 @@ export function buildSessions(dayTabs: string[], allStarts: string[]): Session[]
       return { id: `isr-${day.replace(/-/g, '')}-${time.replace(':', '')}`, label: `${dayLabel(day)} ${partOfDay(Number(time.slice(0, 2)))} ${time}`, datetime: dt };
     });
   }
-  if (dayTabs.length >= 2) return dayTabs.map((day) => ({ id: `isr-${day.replace(/-/g, '')}`, label: dayLabel(day), datetime: '' }));
+  // תחרות של כמה ימים בלי תוכנית משחים מפורסמת: בוקר וערב לכל יום. השעות במזהה (09:00/17:00) הן הערכה בלבד,
+  // כדי שכשהאיגוד יפרסם שעות אמיתיות, ההרשמות יעברו להצגה הקרובה באותו יום.
+  if (dayTabs.length >= 2)
+    return dayTabs.flatMap((day) => {
+      const d = day.replace(/-/g, '');
+      return [
+        { id: `isr-${d}-0900`, label: `${dayLabel(day)} בוקר`, datetime: '' },
+        { id: `isr-${d}-1700`, label: `${dayLabel(day)} ערב`, datetime: '' },
+      ];
+    });
   return [];
 }
 
